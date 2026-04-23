@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "5fVGiZmFf8sFStPmrIdON"
+uri = "file://artifacts/jatek-driver/assets/images/icon.png"
+type = "image"
+title = "jatek driver icon"
