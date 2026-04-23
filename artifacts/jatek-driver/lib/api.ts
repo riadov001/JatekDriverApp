@@ -144,14 +144,26 @@ export type OrderStatus =
   | "pending"
   | "assigned"
   | "accepted"
+  | "arrived_pickup"
   | "picked_up"
+  | "arrived_dropoff"
   | "delivered"
   | "cancelled";
+
+export type PaymentMethod = "cash" | "card" | "online";
+
+export type OrderItem = {
+  name: string;
+  quantity: number;
+  options?: string | null;
+};
 
 export type Order = {
   id: string;
   code: string;
   status: OrderStatus;
+  restaurantName: string;
+  restaurantPhone: string;
   pickupAddress: string;
   dropoffAddress: string;
   pickupLat: number;
@@ -159,12 +171,28 @@ export type Order = {
   dropoffLat: number;
   dropoffLng: number;
   distanceKm: number;
+  etaMinutes: number;
+  items: OrderItem[];
+  subtotalMad: number;
   priceMad: number;
   driverEarningsMad: number;
+  tipMad: number;
+  paymentMethod: PaymentMethod;
+  deliveryCode: string;
   customerName: string;
   customerPhone: string;
   notes?: string | null;
   createdAt: string;
+};
+
+export type Promotion = {
+  id: string;
+  title: string;
+  description: string;
+  bonusMad: number;
+  required: number;
+  progress: number;
+  expiresAt: string;
 };
 
 export async function listAvailableOrders(): Promise<Order[]> {
@@ -183,12 +211,30 @@ export async function acceptOrder(id: string): Promise<Order> {
   return request<Order>(`/orders/${id}/accept`, { method: "POST" });
 }
 
+export async function markArrivedPickup(id: string): Promise<Order> {
+  return request<Order>(`/orders/${id}/arrived-pickup`, { method: "POST" });
+}
+
 export async function markPickedUp(id: string): Promise<Order> {
   return request<Order>(`/orders/${id}/picked-up`, { method: "POST" });
 }
 
-export async function markDelivered(id: string): Promise<Order> {
-  return request<Order>(`/orders/${id}/delivered`, { method: "POST" });
+export async function markArrivedDropoff(id: string): Promise<Order> {
+  return request<Order>(`/orders/${id}/arrived-dropoff`, { method: "POST" });
+}
+
+export async function markDelivered(
+  id: string,
+  deliveryCode: string,
+): Promise<Order> {
+  return request<Order>(`/orders/${id}/delivered`, {
+    method: "POST",
+    body: JSON.stringify({ deliveryCode }),
+  });
+}
+
+export async function cancelOrder(id: string): Promise<Order> {
+  return request<Order>(`/orders/${id}/cancel`, { method: "POST" });
 }
 
 // ───────────────────────── Earnings ─────────────────────────
@@ -199,8 +245,14 @@ export type EarningsSummary = {
   monthMad: number;
   todayDeliveries: number;
   weekDeliveries: number;
+  todayTipsMad: number;
+  weekTipsMad: number;
 };
 
 export async function getEarnings(): Promise<EarningsSummary> {
   return request<EarningsSummary>("/drivers/me/earnings");
+}
+
+export async function getPromotions(): Promise<Promotion[]> {
+  return request<Promotion[]>("/drivers/me/promotions");
 }

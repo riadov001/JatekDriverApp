@@ -42,7 +42,11 @@ router.get("/orders/:id", requireAuth, requireDriver, (req, res) => {
 });
 
 function transition(
-  req: { params: { id: string }; auth?: { sub: string } },
+  req: {
+    params: { id: string };
+    auth?: { sub: string };
+    body?: Record<string, unknown>;
+  },
   res: import("express").Response,
   from: OrderStatus[],
   to: OrderStatus,
@@ -72,7 +76,10 @@ function transition(
     return;
   }
   o.status = to;
-  if (to === "accepted") o.driverId = did;
+  if (to === "accepted") {
+    o.driverId = did;
+    o.acceptedAt = Date.now();
+  }
   if (extra) extra(o);
   res.json(o);
 }
@@ -81,14 +88,51 @@ router.post("/orders/:id/accept", requireAuth, requireDriver, (req, res) => {
   transition(req, res, ["pending", "assigned"], "accepted");
 });
 
+router.post(
+  "/orders/:id/arrived-pickup",
+  requireAuth,
+  requireDriver,
+  (req, res) => {
+    transition(req, res, ["accepted"], "arrived_pickup");
+  },
+);
+
 router.post("/orders/:id/picked-up", requireAuth, requireDriver, (req, res) => {
-  transition(req, res, ["accepted"], "picked_up");
+  transition(req, res, ["accepted", "arrived_pickup"], "picked_up");
 });
 
+router.post(
+  "/orders/:id/arrived-dropoff",
+  requireAuth,
+  requireDriver,
+  (req, res) => {
+    transition(req, res, ["picked_up"], "arrived_dropoff");
+  },
+);
+
 router.post("/orders/:id/delivered", requireAuth, requireDriver, (req, res) => {
-  transition(req, res, ["picked_up"], "delivered", (o) => {
-    if (o) o.deliveredAt = Date.now();
-  });
+  const o = orders.get(req.params.id);
+  if (o) {
+    const provided = (req.body as { deliveryCode?: string } | undefined)
+      ?.deliveryCode;
+    if (!provided || provided !== o.deliveryCode) {
+      res.status(400).json({ message: "Code de livraison incorrect" });
+      return;
+    }
+  }
+  transition(
+    req,
+    res,
+    ["picked_up", "arrived_dropoff"],
+    "delivered",
+    (oo) => {
+      if (oo) oo.deliveredAt = Date.now();
+    },
+  );
+});
+
+router.post("/orders/:id/cancel", requireAuth, requireDriver, (req, res) => {
+  transition(req, res, ["accepted", "arrived_pickup"], "cancelled");
 });
 
 export default router;

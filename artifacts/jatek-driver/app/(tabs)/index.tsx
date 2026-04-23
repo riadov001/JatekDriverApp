@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { IncomingOrderModal } from "@/components/IncomingOrderModal";
+import { PromotionsCarousel } from "@/components/PromotionsCarousel";
 import { useAuth } from "@/context/AuthContext";
 import { useOnline } from "@/context/OnlineContext";
 import { useColors } from "@/hooks/useColors";
@@ -24,6 +26,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { isOnline, toggling, toggleOnline } = useOnline();
+  const [incoming, setIncoming] = useState<Order | null>(null);
+  const seenIds = useRef<Set<string>>(new Set());
+  const dismissedIds = useRef<Set<string>>(new Set());
 
   const earnings = useQuery({
     queryKey: ["earnings"],
@@ -35,8 +40,32 @@ export default function HomeScreen() {
     queryKey: ["available-orders"],
     queryFn: listAvailableOrders,
     enabled: isOnline,
-    refetchInterval: isOnline ? 15_000 : false,
+    refetchInterval: isOnline ? 12_000 : false,
   });
+
+  // Auto-trigger incoming order modal for new available orders.
+  useEffect(() => {
+    if (!isOnline || !available.data?.length || incoming) return;
+    const fresh = available.data.find(
+      (o) => !seenIds.current.has(o.id) && !dismissedIds.current.has(o.id),
+    );
+    if (fresh) {
+      seenIds.current.add(fresh.id);
+      setIncoming(fresh);
+    } else {
+      // Mark all as seen so future polls don't replay old ones.
+      available.data.forEach((o) => seenIds.current.add(o.id));
+    }
+  }, [available.data, isOnline, incoming]);
+
+  // Reset seen list when going offline so they re-trigger when back online.
+  useEffect(() => {
+    if (!isOnline) {
+      seenIds.current.clear();
+      dismissedIds.current.clear();
+      setIncoming(null);
+    }
+  }, [isOnline]);
 
   const onRefresh = () => {
     earnings.refetch();
@@ -153,7 +182,15 @@ export default function HomeScreen() {
                 icon="package"
                 colors={colors}
               />
+              <Stat
+                label="Pourboires"
+                value={`${earnings.data?.todayTipsMad ?? 0} DH`}
+                icon="gift"
+                colors={colors}
+              />
             </View>
+
+            <PromotionsCarousel />
 
             <Text
               style={[
@@ -196,6 +233,15 @@ export default function HomeScreen() {
           </View>
         }
       />
+
+      <IncomingOrderModal
+        visible={!!incoming}
+        order={incoming}
+        onClose={() => {
+          if (incoming) dismissedIds.current.add(incoming.id);
+          setIncoming(null);
+        }}
+      />
     </View>
   );
 }
@@ -222,7 +268,7 @@ function Stat({
         },
       ]}
     >
-      <Feather name={icon} size={18} color={colors.primary} />
+      <Feather name={icon} size={16} color={colors.primary} />
       <Text
         style={[
           styles.statValue,
@@ -252,6 +298,7 @@ function OrderCard({
   colors: ReturnType<typeof useColors>;
   onPress: () => void;
 }) {
+  const itemsCount = order.items.reduce((s, i) => s + i.quantity, 0);
   return (
     <Pressable
       onPress={onPress}
@@ -266,25 +313,48 @@ function OrderCard({
       ]}
     >
       <View style={styles.orderTop}>
-        <Text
-          style={[
-            styles.orderCode,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          #{order.code}
-        </Text>
-        <Text
-          style={[
-            styles.orderPrice,
-            { color: colors.primary, fontFamily: "Inter_700Bold" },
-          ]}
-        >
-          {order.driverEarningsMad} DH
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[
+              styles.restaurant,
+              { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+            ]}
+            numberOfLines={1}
+          >
+            {order.restaurantName}
+          </Text>
+          <Text
+            style={[
+              styles.orderCode,
+              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
+            ]}
+          >
+            #{order.code} · {itemsCount} art.
+          </Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text
+            style={[
+              styles.orderPrice,
+              { color: colors.primary, fontFamily: "Inter_700Bold" },
+            ]}
+          >
+            {order.driverEarningsMad + order.tipMad} DH
+          </Text>
+          {order.tipMad > 0 ? (
+            <Text
+              style={{
+                color: colors.warning,
+                fontFamily: "Inter_500Medium",
+                fontSize: 11,
+              }}
+            >
+              +{order.tipMad} pourboire
+            </Text>
+          ) : null}
+        </View>
       </View>
-      <Row icon="arrow-up-circle" text={order.pickupAddress} colors={colors} />
-      <Row icon="arrow-down-circle" text={order.dropoffAddress} colors={colors} />
+      <Row icon="map-pin" text={order.dropoffAddress} colors={colors} />
       <View style={styles.orderMeta}>
         <Feather name="navigation" size={13} color={colors.mutedForeground} />
         <Text
@@ -293,7 +363,7 @@ function OrderCard({
             { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
           ]}
         >
-          {order.distanceKm.toFixed(1)} km
+          {order.distanceKm.toFixed(1)} km · ~{order.etaMinutes} min
         </Text>
       </View>
     </Pressable>
@@ -311,7 +381,7 @@ function Row({
 }) {
   return (
     <View style={styles.row}>
-      <Feather name={icon} size={15} color={colors.primary} />
+      <Feather name={icon} size={14} color={colors.primary} />
       <Text
         numberOfLines={1}
         style={[
@@ -334,27 +404,24 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   onlineLabel: { fontSize: 14, letterSpacing: 1 },
   onlineHint: { fontSize: 13 },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 22 },
+  statsRow: { flexDirection: "row", gap: 8, marginBottom: 22 },
   statCard: {
     flex: 1,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
-    gap: 6,
+    gap: 4,
   },
-  statValue: { fontSize: 20, marginTop: 2 },
-  statLabel: { fontSize: 12 },
+  statValue: { fontSize: 17, marginTop: 2 },
+  statLabel: { fontSize: 11 },
   sectionTitle: { fontSize: 16, marginBottom: 8 },
   orderCard: { padding: 14, borderWidth: 1, gap: 8 },
-  orderTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  orderCode: { fontSize: 12, letterSpacing: 0.5 },
-  orderPrice: { fontSize: 16 },
+  orderTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  restaurant: { fontSize: 15 },
+  orderCode: { fontSize: 11, marginTop: 2 },
+  orderPrice: { fontSize: 17 },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rowText: { fontSize: 14, flex: 1 },
-  orderMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  rowText: { fontSize: 13, flex: 1 },
+  orderMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   orderMetaText: { fontSize: 12 },
   empty: { alignItems: "center", paddingVertical: 50, gap: 10 },
   emptyText: { fontSize: 14, textAlign: "center", paddingHorizontal: 20 },

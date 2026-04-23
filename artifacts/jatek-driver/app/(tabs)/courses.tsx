@@ -19,7 +19,9 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: "En attente",
   assigned: "Assignée",
   accepted: "Acceptée",
+  arrived_pickup: "Au commerçant",
   picked_up: "En cours",
+  arrived_dropoff: "Chez le client",
   delivered: "Livrée",
   cancelled: "Annulée",
 };
@@ -28,7 +30,9 @@ const STATUS_TONE: Record<OrderStatus, "success" | "warning" | "muted" | "destru
   pending: "muted",
   assigned: "warning",
   accepted: "warning",
+  arrived_pickup: "warning",
   picked_up: "warning",
+  arrived_dropoff: "warning",
   delivered: "success",
   cancelled: "destructive",
 };
@@ -159,10 +163,19 @@ function OrderRow({
         numberOfLines={1}
         style={[
           styles.addr,
-          { color: colors.foreground, fontFamily: "Inter_500Medium" },
+          { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
         ]}
       >
-        {order.dropoffAddress}
+        {order.restaurantName}
+      </Text>
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.subaddr,
+          { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+        ]}
+      >
+        → {order.dropoffAddress}
       </Text>
       <View style={styles.bottomRow}>
         <Text
@@ -179,7 +192,7 @@ function OrderRow({
             { color: colors.primary, fontFamily: "Inter_700Bold" },
           ]}
         >
-          {order.driverEarningsMad} DH
+          {order.driverEarningsMad + order.tipMad} DH
         </Text>
       </View>
     </Pressable>
@@ -199,6 +212,7 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 4 },
   badgeText: { fontSize: 11 },
   addr: { fontSize: 14 },
+  subaddr: { fontSize: 12 },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",

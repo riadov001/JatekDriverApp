@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,15 +16,28 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DeliveryCodeModal } from "@/components/DeliveryCodeModal";
 import { useColors } from "@/hooks/useColors";
 import {
   acceptOrder,
+  cancelOrder,
   getOrder,
+  markArrivedDropoff,
+  markArrivedPickup,
   markDelivered,
   markPickedUp,
   type Order,
   type OrderStatus,
+  type PaymentMethod,
 } from "@/lib/api";
+
+const STEPS: { key: OrderStatus; label: string }[] = [
+  { key: "accepted", label: "Vers le commerçant" },
+  { key: "arrived_pickup", label: "Au commerçant" },
+  { key: "picked_up", label: "Vers le client" },
+  { key: "arrived_dropoff", label: "Chez le client" },
+  { key: "delivered", label: "Livré" },
+];
 
 export default function OrderDetailScreen() {
   const colors = useColors();
@@ -32,6 +45,8 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [codeModal, setCodeModal] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   const order = useQuery({
     queryKey: ["order", id],
@@ -40,25 +55,46 @@ export default function OrderDetailScreen() {
     refetchInterval: 15_000,
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["order", id] });
+    qc.invalidateQueries({ queryKey: ["my-orders"] });
+    qc.invalidateQueries({ queryKey: ["available-orders"] });
+  };
+
   const accept = useMutation({
     mutationFn: () => acceptOrder(id!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order", id] });
-      qc.invalidateQueries({ queryKey: ["my-orders"] });
-      qc.invalidateQueries({ queryKey: ["available-orders"] });
-    },
+    onSuccess: invalidate,
     onError: (e) =>
       Alert.alert("Erreur", e instanceof Error ? e.message : "Échec"),
   });
+  const arrivedPickup = useMutation({
+    mutationFn: () => markArrivedPickup(id!),
+    onSuccess: invalidate,
+  });
   const pickup = useMutation({
     mutationFn: () => markPickedUp(id!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["order", id] }),
+    onSuccess: invalidate,
+  });
+  const arrivedDropoff = useMutation({
+    mutationFn: () => markArrivedDropoff(id!),
+    onSuccess: invalidate,
   });
   const deliver = useMutation({
-    mutationFn: () => markDelivered(id!),
+    mutationFn: (code: string) => markDelivered(id!, code),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order", id] });
+      setCodeModal(false);
+      setCodeError(null);
       qc.invalidateQueries({ queryKey: ["earnings"] });
+      invalidate();
+      router.back();
+    },
+    onError: (e) =>
+      setCodeError(e instanceof Error ? e.message : "Code invalide"),
+  });
+  const cancel = useMutation({
+    mutationFn: () => cancelOrder(id!),
+    onSuccess: () => {
+      invalidate();
       router.back();
     },
   });
@@ -83,140 +119,249 @@ export default function OrderDetailScreen() {
         >
           Course introuvable
         </Text>
-        <Pressable
-          onPress={() => order.refetch()}
-          style={[styles.retry, { borderColor: colors.border, borderRadius: colors.radius }]}
-        >
-          <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
-            Réessayer
-          </Text>
-        </Pressable>
       </View>
     );
   }
 
   const o = order.data;
+  const itemsCount = o.items.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{
-        padding: 16,
-        paddingBottom: insets.bottom + 24,
-      }}
-    >
-      <StatusPill status={o.status} colors={colors} />
-
-      <Text
-        style={[
-          styles.code,
-          { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-        ]}
+    <>
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: insets.bottom + 24,
+        }}
       >
-        Course #{o.code}
-      </Text>
-      <Text
-        style={[
-          styles.price,
-          { color: colors.foreground, fontFamily: "Inter_700Bold" },
-        ]}
-      >
-        {o.driverEarningsMad} DH
-      </Text>
-      <Text
-        style={[
-          styles.priceSub,
-          { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-        ]}
-      >
-        Distance estimée : {o.distanceKm.toFixed(1)} km
-      </Text>
+        <View style={styles.headerTop}>
+          <Text
+            style={[
+              styles.code,
+              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
+            ]}
+          >
+            #{o.code}
+          </Text>
+          <PaymentBadge method={o.paymentMethod} colors={colors} />
+        </View>
+        <Text
+          style={[
+            styles.price,
+            { color: colors.foreground, fontFamily: "Inter_700Bold" },
+          ]}
+        >
+          {o.driverEarningsMad + o.tipMad} DH
+        </Text>
+        <Text
+          style={[
+            styles.priceSub,
+            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+          ]}
+        >
+          {o.driverEarningsMad} DH course
+          {o.tipMad > 0 ? ` + ${o.tipMad} DH pourboire` : ""} ·{" "}
+          {o.distanceKm.toFixed(1)} km · ~{o.etaMinutes} min
+        </Text>
 
-      <Card colors={colors}>
-        <Stop
-          icon="arrow-up-circle"
-          label="RAMASSAGE"
-          address={o.pickupAddress}
-          onNavigate={() => openMaps(o.pickupLat, o.pickupLng)}
-          colors={colors}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <Stop
-          icon="arrow-down-circle"
-          label="LIVRAISON"
-          address={o.dropoffAddress}
-          onNavigate={() => openMaps(o.dropoffLat, o.dropoffLng)}
-          colors={colors}
-        />
-      </Card>
+        <Stepper status={o.status} colors={colors} />
 
-      <Card colors={colors}>
-        <View style={styles.cust}>
-          <Feather name="user" size={18} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                color: colors.foreground,
-                fontFamily: "Inter_600SemiBold",
-                fontSize: 15,
-              }}
-            >
-              {o.customerName}
-            </Text>
+        <Card colors={colors}>
+          <Stop
+            icon="shopping-bag"
+            label="COMMERÇANT"
+            primary={o.restaurantName}
+            secondary={o.pickupAddress}
+            actionIcon="phone"
+            onAction={() => RNLinking.openURL(`tel:${o.restaurantPhone}`)}
+            onNavigate={() => openMaps(o.pickupLat, o.pickupLng)}
+            colors={colors}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <Stop
+            icon="user"
+            label="CLIENT"
+            primary={o.customerName}
+            secondary={o.dropoffAddress}
+            actionIcon="phone"
+            onAction={() => RNLinking.openURL(`tel:${o.customerPhone}`)}
+            onNavigate={() => openMaps(o.dropoffLat, o.dropoffLng)}
+            colors={colors}
+          />
+        </Card>
+
+        <SectionTitle colors={colors}>
+          Articles ({itemsCount})
+        </SectionTitle>
+        <Card colors={colors}>
+          {o.items.map((it, idx) => (
+            <View key={idx}>
+              <View style={styles.itemRow}>
+                <Text
+                  style={[
+                    styles.itemQty,
+                    {
+                      color: colors.primary,
+                      fontFamily: "Inter_700Bold",
+                    },
+                  ]}
+                >
+                  {it.quantity}×
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: colors.foreground,
+                      fontFamily: "Inter_500Medium",
+                      fontSize: 14,
+                    }}
+                  >
+                    {it.name}
+                  </Text>
+                  {it.options ? (
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_400Regular",
+                        fontSize: 12,
+                        marginTop: 1,
+                      }}
+                    >
+                      {it.options}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              {idx < o.items.length - 1 ? (
+                <View
+                  style={[
+                    styles.itemDivider,
+                    { backgroundColor: colors.border },
+                  ]}
+                />
+              ) : null}
+            </View>
+          ))}
+          <View
+            style={[styles.totalRow, { borderTopColor: colors.border }]}
+          >
             <Text
               style={{
                 color: colors.mutedForeground,
-                fontFamily: "Inter_400Regular",
-                fontSize: 12,
-                marginTop: 2,
+                fontFamily: "Inter_500Medium",
+                fontSize: 13,
               }}
             >
-              {o.customerPhone}
+              {o.paymentMethod === "cash"
+                ? "À encaisser"
+                : "Total commande (déjà payé)"}
+            </Text>
+            <Text
+              style={{
+                color: colors.foreground,
+                fontFamily: "Inter_700Bold",
+                fontSize: 18,
+              }}
+            >
+              {o.priceMad} DH
             </Text>
           </View>
-          <Pressable
-            onPress={() => RNLinking.openURL(`tel:${o.customerPhone}`)}
-            style={[
-              styles.callBtn,
-              { backgroundColor: colors.primary, borderRadius: colors.radius },
-            ]}
-            hitSlop={6}
-          >
-            <Feather name="phone" size={16} color={colors.primaryForeground} />
-          </Pressable>
-        </View>
+        </Card>
+
         {o.notes ? (
+          <Card colors={colors}>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Feather name="message-circle" size={16} color={colors.primary} />
+              <Text
+                style={{
+                  color: colors.foreground,
+                  fontFamily: "Inter_400Regular",
+                  fontSize: 13,
+                  flex: 1,
+                  lineHeight: 18,
+                }}
+              >
+                {o.notes}
+              </Text>
+            </View>
+          </Card>
+        ) : null}
+
+        {o.status === "arrived_dropoff" || o.status === "picked_up" ? (
           <Text
             style={{
               color: colors.mutedForeground,
               fontFamily: "Inter_400Regular",
-              fontSize: 13,
+              fontSize: 12,
               marginTop: 12,
+              textAlign: "center",
             }}
           >
-            Note : {o.notes}
+            Le client recevra un code à 4 chiffres pour confirmer la livraison.
           </Text>
         ) : null}
-      </Card>
 
-      <ActionBar
-        order={o}
-        colors={colors}
-        loading={accept.isPending || pickup.isPending || deliver.isPending}
-        onAccept={() => accept.mutate()}
-        onPickup={() => pickup.mutate()}
-        onDeliver={() =>
-          Alert.alert(
-            "Livraison terminée ?",
-            "Confirmez que la commande a bien été remise au client.",
-            [
-              { text: "Annuler", style: "cancel" },
-              { text: "Confirmer", onPress: () => deliver.mutate() },
-            ],
-          )
-        }
+        <ActionBar
+          order={o}
+          colors={colors}
+          loading={
+            accept.isPending ||
+            arrivedPickup.isPending ||
+            pickup.isPending ||
+            arrivedDropoff.isPending
+          }
+          onAccept={() => accept.mutate()}
+          onArrivedPickup={() => arrivedPickup.mutate()}
+          onPickup={() => pickup.mutate()}
+          onArrivedDropoff={() => arrivedDropoff.mutate()}
+          onDeliver={() => {
+            setCodeError(null);
+            setCodeModal(true);
+          }}
+        />
+
+        {(o.status === "accepted" || o.status === "arrived_pickup") && (
+          <Pressable
+            onPress={() =>
+              Alert.alert("Annuler la course", "Êtes-vous sûr ?", [
+                { text: "Non" },
+                {
+                  text: "Oui",
+                  style: "destructive",
+                  onPress: () => cancel.mutate(),
+                },
+              ])
+            }
+            style={({ pressed }) => [
+              styles.cancelBtn,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text
+              style={{
+                color: colors.destructive,
+                fontFamily: "Inter_500Medium",
+                fontSize: 13,
+              }}
+            >
+              Annuler la course
+            </Text>
+          </Pressable>
+        )}
+      </ScrollView>
+
+      <DeliveryCodeModal
+        visible={codeModal}
+        loading={deliver.isPending}
+        error={codeError}
+        onClose={() => {
+          setCodeModal(false);
+          setCodeError(null);
+        }}
+        onSubmit={(code) => deliver.mutate(code)}
       />
-    </ScrollView>
+    </>
   );
 }
 
@@ -229,36 +374,110 @@ function openMaps(lat: number, lng: number) {
   Linking.openURL(url!).catch(() => {});
 }
 
-function StatusPill({
+function PaymentBadge({
+  method,
+  colors,
+}: {
+  method: PaymentMethod;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const map: Record<
+    PaymentMethod,
+    { label: string; icon: keyof typeof Feather.glyphMap }
+  > = {
+    cash: { label: "Espèces", icon: "dollar-sign" },
+    card: { label: "Carte", icon: "credit-card" },
+    online: { label: "Payé en ligne", icon: "check-circle" },
+  };
+  const m = map[method];
+  const isCash = method === "cash";
+  return (
+    <View
+      style={[
+        styles.payBadge,
+        {
+          backgroundColor: isCash ? colors.warning : colors.muted,
+          borderRadius: colors.radius / 2,
+        },
+      ]}
+    >
+      <Feather
+        name={m.icon}
+        size={12}
+        color={isCash ? "#1f1300" : colors.foreground}
+      />
+      <Text
+        style={{
+          color: isCash ? "#1f1300" : colors.foreground,
+          fontFamily: "Inter_600SemiBold",
+          fontSize: 11,
+        }}
+      >
+        {m.label}
+      </Text>
+    </View>
+  );
+}
+
+function Stepper({
   status,
   colors,
 }: {
   status: OrderStatus;
   colors: ReturnType<typeof useColors>;
 }) {
-  const map: Record<OrderStatus, { label: string; bg: string; fg: string }> = {
-    pending: { label: "En attente", bg: colors.muted, fg: colors.foreground },
-    assigned: { label: "Assignée", bg: colors.muted, fg: colors.foreground },
-    accepted: { label: "Acceptée", bg: colors.accent, fg: colors.accentForeground },
-    picked_up: { label: "En cours", bg: colors.accent, fg: colors.accentForeground },
-    delivered: { label: "Livrée", bg: colors.primary, fg: colors.primaryForeground },
-    cancelled: {
-      label: "Annulée",
-      bg: colors.destructive,
-      fg: colors.destructiveForeground,
-    },
-  };
-  const s = map[status];
+  const idx = STEPS.findIndex((s) => s.key === status);
+  if (idx < 0) return null;
   return (
-    <View
-      style={[
-        styles.pill,
-        { backgroundColor: s.bg, borderRadius: colors.radius / 1.4 },
-      ]}
-    >
-      <Text style={[styles.pillText, { color: s.fg, fontFamily: "Inter_500Medium" }]}>
-        {s.label}
-      </Text>
+    <View style={styles.stepper}>
+      {STEPS.map((s, i) => {
+        const done = i <= idx;
+        return (
+          <React.Fragment key={s.key}>
+            <View style={styles.stepItem}>
+              <View
+                style={[
+                  styles.stepDot,
+                  {
+                    backgroundColor: done ? colors.primary : colors.muted,
+                    borderColor: done ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                {done ? (
+                  <Feather
+                    name="check"
+                    size={10}
+                    color={colors.primaryForeground}
+                  />
+                ) : null}
+              </View>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  {
+                    color: done ? colors.foreground : colors.mutedForeground,
+                    fontFamily: done ? "Inter_600SemiBold" : "Inter_400Regular",
+                  },
+                ]}
+                numberOfLines={2}
+              >
+                {s.label}
+              </Text>
+            </View>
+            {i < STEPS.length - 1 ? (
+              <View
+                style={[
+                  styles.stepLine,
+                  {
+                    backgroundColor: i < idx ? colors.primary : colors.border,
+                  },
+                ]}
+              />
+            ) : null}
+          </React.Fragment>
+        );
+      })}
     </View>
   );
 }
@@ -286,28 +505,65 @@ function Card({
   );
 }
 
+function SectionTitle({
+  children,
+  colors,
+}: {
+  children: React.ReactNode;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <Text
+      style={{
+        color: colors.mutedForeground,
+        fontFamily: "Inter_500Medium",
+        fontSize: 11,
+        letterSpacing: 1,
+        marginTop: 18,
+        marginBottom: 8,
+        marginLeft: 4,
+      }}
+    >
+      {String(children).toUpperCase()}
+    </Text>
+  );
+}
+
 function Stop({
   icon,
   label,
-  address,
+  primary,
+  secondary,
+  actionIcon,
+  onAction,
   onNavigate,
   colors,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
-  address: string;
+  primary: string;
+  secondary: string;
+  actionIcon: keyof typeof Feather.glyphMap;
+  onAction: () => void;
   onNavigate: () => void;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
     <View style={styles.stop}>
-      <Feather name={icon} size={20} color={colors.primary} />
+      <View
+        style={[
+          styles.stopIcon,
+          { backgroundColor: colors.muted, borderRadius: 10 },
+        ]}
+      >
+        <Feather name={icon} size={16} color={colors.primary} />
+      </View>
       <View style={{ flex: 1 }}>
         <Text
           style={{
             color: colors.mutedForeground,
             fontFamily: "Inter_500Medium",
-            fontSize: 11,
+            fontSize: 10,
             letterSpacing: 1,
           }}
         >
@@ -316,16 +572,50 @@ function Stop({
         <Text
           style={{
             color: colors.foreground,
-            fontFamily: "Inter_500Medium",
-            fontSize: 14,
-            marginTop: 2,
+            fontFamily: "Inter_600SemiBold",
+            fontSize: 15,
+            marginTop: 1,
           }}
         >
-          {address}
+          {primary}
+        </Text>
+        <Text
+          style={{
+            color: colors.mutedForeground,
+            fontFamily: "Inter_400Regular",
+            fontSize: 12,
+            marginTop: 1,
+          }}
+          numberOfLines={2}
+        >
+          {secondary}
         </Text>
       </View>
-      <Pressable onPress={onNavigate} hitSlop={8}>
-        <Feather name="navigation" size={18} color={colors.primary} />
+      <Pressable
+        onPress={onAction}
+        hitSlop={6}
+        style={[
+          styles.iconBtn,
+          {
+            backgroundColor: colors.muted,
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
+        <Feather name={actionIcon} size={16} color={colors.primary} />
+      </Pressable>
+      <Pressable
+        onPress={onNavigate}
+        hitSlop={6}
+        style={[
+          styles.iconBtn,
+          {
+            backgroundColor: colors.primary,
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
+        <Feather name="navigation" size={16} color={colors.primaryForeground} />
       </Pressable>
     </View>
   );
@@ -336,29 +626,46 @@ function ActionBar({
   colors,
   loading,
   onAccept,
+  onArrivedPickup,
   onPickup,
+  onArrivedDropoff,
   onDeliver,
 }: {
   order: Order;
   colors: ReturnType<typeof useColors>;
   loading: boolean;
   onAccept: () => void;
+  onArrivedPickup: () => void;
   onPickup: () => void;
+  onArrivedDropoff: () => void;
   onDeliver: () => void;
 }) {
   let label = "";
   let onPress: (() => void) | null = null;
-  if (order.status === "pending" || order.status === "assigned") {
-    label = "Accepter la course";
-    onPress = onAccept;
-  } else if (order.status === "accepted") {
-    label = "Marquer comme récupérée";
-    onPress = onPickup;
-  } else if (order.status === "picked_up") {
-    label = "Marquer comme livrée";
-    onPress = onDeliver;
-  } else {
-    return null;
+  switch (order.status) {
+    case "pending":
+    case "assigned":
+      label = "Accepter la course";
+      onPress = onAccept;
+      break;
+    case "accepted":
+      label = "Je suis arrivé au commerçant";
+      onPress = onArrivedPickup;
+      break;
+    case "arrived_pickup":
+      label = "J'ai récupéré la commande";
+      onPress = onPickup;
+      break;
+    case "picked_up":
+      label = "Je suis arrivé chez le client";
+      onPress = onArrivedDropoff;
+      break;
+    case "arrived_dropoff":
+      label = "Confirmer la livraison";
+      onPress = onDeliver;
+      break;
+    default:
+      return null;
   }
 
   return (
@@ -393,26 +700,79 @@ function ActionBar({
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  retry: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderWidth: 1 },
-  pill: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5 },
-  pillText: { fontSize: 11, letterSpacing: 0.5 },
-  code: { fontSize: 12, marginTop: 14 },
-  price: { fontSize: 32, marginTop: 4 },
-  priceSub: { fontSize: 13, marginBottom: 16 },
-  card: { padding: 16, borderWidth: 1, marginTop: 12 },
-  stop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  divider: { height: 1, marginVertical: 14, marginLeft: 32 },
-  cust: { flexDirection: "row", alignItems: "center", gap: 12 },
-  callBtn: {
-    width: 40,
-    height: 40,
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  code: { fontSize: 12 },
+  payBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  price: { fontSize: 32, marginTop: 6 },
+  priceSub: { fontSize: 12, marginBottom: 18 },
+
+  stepper: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 18,
+    paddingHorizontal: 4,
+  },
+  stepItem: { alignItems: "center", width: 60 },
+  stepDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
+  stepLabel: {
+    fontSize: 9,
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 11,
+  },
+  stepLine: { flex: 1, height: 2, marginTop: 10, marginHorizontal: -2 },
+
+  card: { padding: 16, borderWidth: 1, marginTop: 12 },
+  divider: { height: 1, marginVertical: 14, marginLeft: 46 },
+  stop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  stopIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  itemRow: { flexDirection: "row", gap: 12, paddingVertical: 8 },
+  itemQty: { fontSize: 14, width: 28 },
+  itemDivider: { height: 1 },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    paddingTop: 12,
+    marginTop: 8,
+  },
+
   action: {
     height: 56,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
   },
+  cancelBtn: { alignSelf: "center", padding: 14, marginTop: 4 },
 });

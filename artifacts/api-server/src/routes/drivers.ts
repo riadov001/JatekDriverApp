@@ -4,6 +4,7 @@ import {
   users,
   orders,
   id,
+  promotionsFor,
   type DriverProfile,
   type VehicleType,
 } from "../lib/store";
@@ -109,21 +110,26 @@ router.get(
       weekMad = 0,
       monthMad = 0,
       todayDeliveries = 0,
-      weekDeliveries = 0;
+      weekDeliveries = 0,
+      todayTipsMad = 0,
+      weekTipsMad = 0;
     for (const o of orders.values()) {
       if (o.status !== "delivered" || !o.deliveredAt) continue;
       if (o.driverId !== driverId) continue;
+      const total = o.driverEarningsMad + (o.tipMad ?? 0);
       const age = now - o.deliveredAt;
       if (age < dayMs) {
-        todayMad += o.driverEarningsMad;
+        todayMad += total;
+        todayTipsMad += o.tipMad ?? 0;
         todayDeliveries++;
       }
       if (age < 7 * dayMs) {
-        weekMad += o.driverEarningsMad;
+        weekMad += total;
+        weekTipsMad += o.tipMad ?? 0;
         weekDeliveries++;
       }
       if (age < 30 * dayMs) {
-        monthMad += o.driverEarningsMad;
+        monthMad += total;
       }
     }
     res.json({
@@ -132,7 +138,19 @@ router.get(
       monthMad,
       todayDeliveries,
       weekDeliveries,
+      todayTipsMad,
+      weekTipsMad,
     });
+  },
+);
+
+router.get(
+  "/drivers/me/promotions",
+  requireAuth,
+  requireDriver,
+  (req, res) => {
+    const driverId = users.get(req.auth!.sub)?.driver?.id;
+    res.json(promotionsFor(driverId));
   },
 );
 

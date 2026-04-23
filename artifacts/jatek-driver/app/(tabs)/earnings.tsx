@@ -76,6 +76,9 @@ export default function EarningsScreen() {
         >
           {earnings.data?.todayDeliveries ?? 0} livraison
           {(earnings.data?.todayDeliveries ?? 0) > 1 ? "s" : ""}
+          {(earnings.data?.todayTipsMad ?? 0) > 0
+            ? ` · ${earnings.data?.todayTipsMad} DH de pourboires`
+            : ""}
         </Text>
       </View>
 
@@ -87,6 +90,14 @@ export default function EarningsScreen() {
           sub={`${earnings.data?.weekDeliveries ?? 0} livraisons`}
           colors={colors}
         />
+        <Card
+          icon="gift"
+          label="Pourboires (sem.)"
+          value={`${earnings.data?.weekTipsMad ?? 0} DH`}
+          colors={colors}
+        />
+      </View>
+      <View style={[styles.row, { marginTop: 0 }]}>
         <Card
           icon="bar-chart-2"
           label="Ce mois"
