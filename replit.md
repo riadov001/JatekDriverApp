@@ -24,4 +24,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
+## Jatek Driver — Backend targets
+
+The driver app (`artifacts/jatek-driver`) supports two backend targets, switchable from the login screen:
+
+- **Démo (OTP)** → local in-memory `api-server` (rich features: tips, promotions, multi-step delivery, delivery code `000000`).
+- **Production** → `https://backend.jatek.app/api` (real Google App Engine REST API, email + password auth, integer IDs).
+
+Selection is persisted in `expo-secure-store` under `jatek_driver_api_target`. The runtime adapter in `lib/api.ts` maps the prod schema (`isAvailable`, `nationalId`, `pickupCode`, `vehicleType: "Moto"`, etc.) onto the in-app types so all screens work against either backend without changes. Features that prod doesn't expose (tips, promotions) gracefully degrade to empty/zero on prod.
+
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
