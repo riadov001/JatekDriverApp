@@ -135,4 +135,35 @@ router.post("/orders/:id/cancel", requireAuth, requireDriver, (req, res) => {
   transition(req, res, ["accepted", "arrived_pickup"], "cancelled");
 });
 
+router.get("/orders/:id/tracking", requireAuth, (req, res) => {
+  const o = orders.get(req.params.id);
+  if (!o) {
+    res.status(404).json({ message: "Course introuvable" });
+    return;
+  }
+  if (!o.driverId) {
+    res.json({ available: false });
+    return;
+  }
+  const driver = [...users.values()].find(
+    (u) => u.driver?.id === o.driverId,
+  )?.driver;
+  if (!driver?.lastLat || !driver?.lastLng) {
+    res.json({ available: false });
+    return;
+  }
+  res.json({
+    available: true,
+    latitude: driver.lastLat,
+    longitude: driver.lastLng,
+    heading: null,
+    updatedAt: driver.lastLocationAt ?? null,
+    orderStatus: o.status,
+    pickupLat: o.pickupLat,
+    pickupLng: o.pickupLng,
+    dropoffLat: o.dropoffLat,
+    dropoffLng: o.dropoffLng,
+  });
+});
+
 export default router;

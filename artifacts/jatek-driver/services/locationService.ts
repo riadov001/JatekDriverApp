@@ -84,7 +84,7 @@ export async function startLocationTracking(): Promise<void> {
     foregroundService: {
       notificationTitle: "Jatek Driver",
       notificationBody: "Vous êtes en ligne — partage de position activé.",
-      notificationColor: "#16A34A",
+      notificationColor: "#E91E8C",
     },
     activityType: Location.ActivityType.AutomotiveNavigation,
     deferredUpdatesInterval: 15000,

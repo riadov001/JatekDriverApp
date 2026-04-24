@@ -17,7 +17,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DeliveryCodeModal } from "@/components/DeliveryCodeModal";
+import { DeliveryMap } from "@/components/DeliveryMap";
 import { useColors } from "@/hooks/useColors";
+import { useOrderNotifications } from "@/hooks/useOrderNotifications";
 import {
   acceptOrder,
   cancelOrder,
@@ -52,8 +54,10 @@ export default function OrderDetailScreen() {
     queryKey: ["order", id],
     queryFn: () => getOrder(id!),
     enabled: !!id,
-    refetchInterval: 15_000,
+    refetchInterval: 8_000,
   });
+
+  useOrderNotifications(order.data?.status);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["order", id] });
@@ -164,6 +168,13 @@ export default function OrderDetailScreen() {
           {o.tipMad > 0 ? ` + ${o.tipMad} DH pourboire` : ""} ·{" "}
           {o.distanceKm.toFixed(1)} km · ~{o.etaMinutes} min
         </Text>
+
+        {(o.status === "accepted" ||
+          o.status === "arrived_pickup" ||
+          o.status === "picked_up" ||
+          o.status === "arrived_dropoff") && (
+          <DeliveryMap order={o} style={{ marginBottom: 16 }} />
+        )}
 
         <Stepper status={o.status} colors={colors} />
 

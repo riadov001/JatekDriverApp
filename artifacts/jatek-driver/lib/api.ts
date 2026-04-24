@@ -567,3 +567,24 @@ export async function getPromotions(): Promise<Promotion[]> {
   if (target === "prod") return [];
   return request<Promotion[]>("/drivers/me/promotions");
 }
+
+// ───────────────────────── Live Tracking ─────────────────────────
+
+export type TrackingInfo =
+  | { available: false }
+  | {
+      available: true;
+      latitude: number;
+      longitude: number;
+      heading: number | null;
+      updatedAt: number | null;
+      orderStatus: OrderStatus;
+      pickupLat: number;
+      pickupLng: number;
+      dropoffLat: number;
+      dropoffLng: number;
+    };
+
+export async function getOrderTracking(orderId: string): Promise<TrackingInfo> {
+  return request<TrackingInfo>(`/orders/${orderId}/tracking`);
+}
