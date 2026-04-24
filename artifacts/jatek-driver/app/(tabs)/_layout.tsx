@@ -19,7 +19,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
-        tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
+        tabBarLabelStyle: { fontFamily: "Inter_600SemiBold", fontSize: 10 },
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
@@ -48,7 +48,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Accueil",
+          title: "Home",
           tabBarIcon: ({ color, size }) => (
             <Feather name="home" size={size ?? 22} color={color} />
           ),
@@ -59,7 +59,7 @@ export default function TabsLayout() {
         options={{
           title: "Courses",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="map-pin" size={size ?? 22} color={color} />
+            <Feather name="list" size={size ?? 22} color={color} />
           ),
         }}
       />
@@ -68,7 +68,7 @@ export default function TabsLayout() {
         options={{
           title: "Gains",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="dollar-sign" size={size ?? 22} color={color} />
+            <Feather name="credit-card" size={size ?? 22} color={color} />
           ),
         }}
       />

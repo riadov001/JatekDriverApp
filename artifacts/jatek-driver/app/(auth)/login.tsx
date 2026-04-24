@@ -72,7 +72,6 @@ export default function LoginScreen() {
           ? String((e as { message: unknown }).message)
           : "Erreur réseau";
       if (target === "local") {
-        // Dev shortcut: even if backend isn't ready, allow proceeding to OTP
         router.push({
           pathname: "/(auth)/otp",
           params: { phone: cleanPhone },
@@ -88,45 +87,32 @@ export default function LoginScreen() {
     <KeyboardAwareScrollView
       contentContainerStyle={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top + 32 },
+        { backgroundColor: colors.background, paddingTop: insets.top + 40 },
       ]}
       bottomOffset={24}
       keyboardShouldPersistTaps="handled"
     >
-      <View
-        style={[
-          styles.logoCircle,
-          { backgroundColor: colors.primary, borderRadius: colors.radius * 4 },
-        ]}
-      >
-        <Feather name="truck" size={36} color={colors.primaryForeground} />
+      <View style={styles.logoArea}>
+        <View style={[styles.logoPill, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.logoText, { color: colors.primaryForeground, fontFamily: "Inter_700Bold" }]}>
+            JATEK
+          </Text>
+        </View>
+        <Text style={[styles.logoSub, { color: colors.info, fontFamily: "Inter_700Bold" }]}>
+          DRIVER
+        </Text>
       </View>
 
-      <Text
-        style={[
-          styles.title,
-          { color: colors.foreground, fontFamily: "Inter_700Bold" },
-        ]}
-      >
-        Jatek Driver
+      <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+        Bienvenue sur Jatek Driver
       </Text>
-      <Text
-        style={[
-          styles.subtitle,
-          { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-        ]}
-      >
+      <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
         {target === "prod"
           ? "Connectez-vous avec votre email et mot de passe"
-          : "Connectez-vous avec votre numéro de téléphone"}
+          : "Connectez-vous pour commencer vos livraisons"}
       </Text>
 
-      <View
-        style={[
-          styles.targetSwitch,
-          { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
-        ]}
-      >
+      <View style={[styles.toggleRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
         {(["local", "prod"] as const).map((t) => {
           const active = target === t;
           return (
@@ -134,18 +120,15 @@ export default function LoginScreen() {
               key={t}
               onPress={() => onChangeTarget(t)}
               style={[
-                styles.targetBtn,
-                {
-                  backgroundColor: active ? colors.primary : "transparent",
-                  borderRadius: colors.radius - 2,
-                },
+                styles.toggleBtn,
+                { backgroundColor: active ? colors.primary : "transparent" },
               ]}
             >
               <Text
                 style={{
                   color: active ? colors.primaryForeground : colors.mutedForeground,
                   fontFamily: "Inter_600SemiBold",
-                  fontSize: 13,
+                  fontSize: 14,
                 }}
               >
                 {t === "local" ? "Démo (OTP)" : "Production"}
@@ -158,8 +141,10 @@ export default function LoginScreen() {
       <View style={styles.form}>
         {target === "prod" ? (
           <>
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Email</Text>
-            <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              Email
+            </Text>
+            <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -168,26 +153,33 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
               />
             </View>
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 8 }]}>Mot de passe</Text>
-            <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 12 }]}>
+              Mot de passe
+            </Text>
+            <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••"
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry
-                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
               />
             </View>
           </>
         ) : (
           <>
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Numéro de téléphone</Text>
-            <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-              <Text style={[styles.dial, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>+212</Text>
+            <View style={[styles.phoneRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <View style={[styles.dialBox, { borderRightColor: colors.border, backgroundColor: colors.muted }]}>
+                <Text style={styles.flag}>🇲🇦</Text>
+                <Text style={[styles.dial, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  +212
+                </Text>
+                <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+              </View>
               <TextInput
                 value={phone}
                 onChangeText={setPhone}
@@ -195,18 +187,25 @@ export default function LoginScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="phone-pad"
                 autoFocus
-                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium", flex: 1 }]}
               />
             </View>
           </>
         )}
 
         {error ? (
-          <Text style={[styles.error, { color: colors.destructive }]}>
+          <Text style={[styles.error, { color: colors.destructive, fontFamily: "Inter_400Regular" }]}>
             {error}
           </Text>
         ) : null}
+      </View>
 
+      <View style={styles.bottom}>
+        <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {target === "prod"
+            ? "Backend connecté : backend.jatek.app"
+            : "En continuant, vous acceptez les conditions d'utilisation de Jatek."}
+        </Text>
         <Pressable
           onPress={onContinue}
           disabled={!valid || loading}
@@ -214,7 +213,6 @@ export default function LoginScreen() {
             styles.button,
             {
               backgroundColor: valid ? colors.primary : colors.muted,
-              borderRadius: colors.radius,
               opacity: pressed ? 0.85 : 1,
             },
           ]}
@@ -227,7 +225,7 @@ export default function LoginScreen() {
                 styles.buttonText,
                 {
                   color: valid ? colors.primaryForeground : colors.mutedForeground,
-                  fontFamily: "Inter_600SemiBold",
+                  fontFamily: "Inter_700Bold",
                 },
               ]}
             >
@@ -235,12 +233,6 @@ export default function LoginScreen() {
             </Text>
           )}
         </Pressable>
-
-        <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {target === "prod"
-            ? "Backend connecté : backend.jatek.app"
-            : "Mode démo : backend local en mémoire (code 000000)"}
-        </Text>
       </View>
     </KeyboardAwareScrollView>
   );
@@ -248,30 +240,68 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 32 },
-  logoCircle: { width: 76, height: 76, alignItems: "center", justifyContent: "center", marginBottom: 24 },
-  title: { fontSize: 28, marginBottom: 6 },
-  subtitle: { fontSize: 15, marginBottom: 20 },
-  targetSwitch: {
+  logoArea: { alignItems: "center", marginBottom: 32, gap: 8 },
+  logoPill: {
+    paddingHorizontal: 32,
+    paddingVertical: 10,
+    borderRadius: 50,
+  },
+  logoText: { fontSize: 40, letterSpacing: -1 },
+  logoSub: { fontSize: 18, letterSpacing: 6 },
+  title: { fontSize: 24, marginBottom: 8 },
+  subtitle: { fontSize: 15, marginBottom: 24, lineHeight: 22 },
+  toggleRow: {
     flexDirection: "row",
-    padding: 4,
+    borderRadius: 50,
     borderWidth: 1,
-    marginBottom: 20,
+    padding: 4,
+    marginBottom: 24,
     gap: 4,
   },
-  targetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10 },
-  form: { gap: 12 },
+  toggleBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 50,
+  },
+  form: { gap: 8 },
   label: { fontSize: 13, marginBottom: 4, marginLeft: 2 },
-  row: {
+  inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     height: 56,
   },
-  dial: { fontSize: 16, marginRight: 10 },
-  input: { flex: 1, fontSize: 17 },
-  button: { height: 54, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  buttonText: { fontSize: 16 },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 16,
+    height: 56,
+    overflow: "hidden",
+  },
+  dialBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    height: "100%",
+    borderRightWidth: 1,
+    gap: 6,
+  },
+  flag: { fontSize: 20 },
+  dial: { fontSize: 15 },
+  textInput: { flex: 1, fontSize: 16, paddingHorizontal: 16, height: "100%" },
   error: { fontSize: 13, marginTop: 4 },
-  legal: { fontSize: 12, textAlign: "center", marginTop: 18, paddingHorizontal: 16 },
+  bottom: { marginTop: "auto", paddingTop: 32, gap: 16 },
+  legal: { fontSize: 12, textAlign: "center", lineHeight: 18, paddingHorizontal: 8 },
+  button: {
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 28,
+  },
+  buttonText: { fontSize: 17 },
 });

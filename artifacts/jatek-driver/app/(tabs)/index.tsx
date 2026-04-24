@@ -43,7 +43,6 @@ export default function HomeScreen() {
     refetchInterval: isOnline ? 12_000 : false,
   });
 
-  // Auto-trigger incoming order modal for new available orders.
   useEffect(() => {
     if (!isOnline || !available.data?.length || incoming) return;
     const fresh = available.data.find(
@@ -53,12 +52,10 @@ export default function HomeScreen() {
       seenIds.current.add(fresh.id);
       setIncoming(fresh);
     } else {
-      // Mark all as seen so future polls don't replay old ones.
       available.data.forEach((o) => seenIds.current.add(o.id));
     }
   }, [available.data, isOnline, incoming]);
 
-  // Reset seen list when going offline so they re-trigger when back online.
   useEffect(() => {
     if (!isOnline) {
       seenIds.current.clear();
@@ -72,13 +69,16 @@ export default function HomeScreen() {
     if (isOnline) available.refetch();
   };
 
+  const driverName = user?.fullName ?? user?.driver?.fullName ?? "Chauffeur";
+  const firstName = driverName.split(" ")[0];
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <FlatList
         data={isOnline ? available.data ?? [] : []}
         keyExtractor={(o) => o.id}
         contentContainerStyle={{
-          paddingTop: insets.top + 12,
+          paddingTop: insets.top + 8,
           paddingBottom: insets.bottom + 100,
           paddingHorizontal: 16,
         }}
@@ -91,22 +91,16 @@ export default function HomeScreen() {
         }
         ListHeaderComponent={
           <View style={{ marginBottom: 16 }}>
-            <Text
-              style={[
-                styles.hello,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-              ]}
-            >
-              Bonjour
-            </Text>
-            <Text
-              style={[
-                styles.name,
-                { color: colors.foreground, fontFamily: "Inter_700Bold" },
-              ]}
-            >
-              {user?.fullName ?? user?.driver?.fullName ?? "Chauffeur"}
-            </Text>
+            <View style={styles.header}>
+              <View style={[styles.logoPill, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.logoText, { color: colors.primaryForeground, fontFamily: "Inter_700Bold" }]}>
+                  JATEK
+                </Text>
+              </View>
+              <Text style={[styles.greeting, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Bonjour {firstName}
+              </Text>
+            </View>
 
             <Pressable
               onPress={toggleOnline}
@@ -114,92 +108,73 @@ export default function HomeScreen() {
               style={({ pressed }) => [
                 styles.onlineCard,
                 {
-                  backgroundColor: isOnline ? colors.primary : colors.card,
-                  borderColor: isOnline ? colors.primary : colors.border,
-                  borderRadius: colors.radius * 1.4,
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
                   opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
-              <View style={styles.onlineRow}>
-                <View
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor: isOnline
-                        ? colors.primaryForeground
-                        : colors.mutedForeground,
-                    },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.onlineLabel,
-                    {
-                      color: isOnline
-                        ? colors.primaryForeground
-                        : colors.foreground,
-                      fontFamily: "Inter_600SemiBold",
-                    },
-                  ]}
-                >
-                  {isOnline ? "EN LIGNE" : "HORS LIGNE"}
-                </Text>
-                {toggling ? (
-                  <ActivityIndicator
-                    color={isOnline ? colors.primaryForeground : colors.primary}
-                    style={{ marginLeft: 10 }}
-                  />
-                ) : null}
-              </View>
-              <Text
+              <View
                 style={[
-                  styles.onlineHint,
-                  {
-                    color: isOnline
-                      ? colors.primaryForeground
-                      : colors.mutedForeground,
-                    fontFamily: "Inter_400Regular",
-                  },
+                  styles.onlineToggle,
+                  { backgroundColor: isOnline ? colors.primary : colors.mutedForeground },
                 ]}
               >
+                {toggling ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={[styles.onlineToggleText, { fontFamily: "Inter_700Bold" }]}>
+                    {isOnline ? "En ligne" : "Hors ligne"}
+                  </Text>
+                )}
+              </View>
+              <Text style={[styles.onlineStatus, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                {isOnline ? "Vous êtes en ligne" : "Vous êtes hors ligne"}
+              </Text>
+              <Text style={[styles.onlineHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                 {isOnline
-                  ? "Vous recevez des courses. Tap pour passer hors ligne."
-                  : "Tap pour commencer à recevoir des courses."}
+                  ? "Recherche de courses en cours..."
+                  : "Passez en ligne pour recevoir des courses"}
               </Text>
             </Pressable>
 
             <View style={styles.statsRow}>
-              <Stat
-                label="Aujourd'hui"
-                value={`${earnings.data?.todayMad ?? 0} DH`}
-                icon="trending-up"
-                colors={colors}
-              />
-              <Stat
-                label="Livraisons"
-                value={`${earnings.data?.todayDeliveries ?? 0}`}
-                icon="package"
-                colors={colors}
-              />
-              <Stat
-                label="Pourboires"
-                value={`${earnings.data?.todayTipsMad ?? 0} DH`}
-                icon="gift"
-                colors={colors}
-              />
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <Text style={[styles.statValue, { color: colors.info, fontFamily: "Inter_700Bold" }]}>
+                  {earnings.data?.todayDeliveries ?? 0}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  Livraisons
+                </Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <Text style={[styles.statValue, { color: colors.success, fontFamily: "Inter_700Bold" }]}>
+                  {earnings.data?.todayMad ?? 0}
+                  <Text style={{ fontSize: 13 }}> DH</Text>
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  Gains
+                </Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <Text style={[styles.statValue, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                  {earnings.data?.todayTipsMad ?? 0}
+                  <Text style={{ fontSize: 13 }}> DH</Text>
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  Pourboires
+                </Text>
+              </View>
             </View>
 
             <PromotionsCarousel />
 
-            <Text
-              style={[
-                styles.sectionTitle,
-                { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
-              ]}
-            >
-              Courses disponibles
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                Courses disponibles
+              </Text>
+            </View>
           </View>
         }
         renderItem={({ item }) => (
@@ -209,23 +184,15 @@ export default function HomeScreen() {
             onPress={() => router.push(`/order/${item.id}`)}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Feather
               name={isOnline ? "search" : "moon"}
-              size={32}
+              size={36}
               color={colors.mutedForeground}
             />
-            <Text
-              style={[
-                styles.emptyText,
-                {
-                  color: colors.mutedForeground,
-                  fontFamily: "Inter_500Medium",
-                },
-              ]}
-            >
+            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
               {isOnline
                 ? "Aucune course disponible pour le moment."
                 : "Passez en ligne pour voir les courses."}
@@ -246,49 +213,6 @@ export default function HomeScreen() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  icon,
-  colors,
-}: {
-  label: string;
-  value: string;
-  icon: keyof typeof Feather.glyphMap;
-  colors: ReturnType<typeof useColors>;
-}) {
-  return (
-    <View
-      style={[
-        styles.statCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          borderRadius: colors.radius,
-        },
-      ]}
-    >
-      <Feather name={icon} size={16} color={colors.primary} />
-      <Text
-        style={[
-          styles.statValue,
-          { color: colors.foreground, fontFamily: "Inter_700Bold" },
-        ]}
-      >
-        {value}
-      </Text>
-      <Text
-        style={[
-          styles.statLabel,
-          { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 function OrderCard({
   order,
   colors,
@@ -298,14 +222,13 @@ function OrderCard({
   colors: ReturnType<typeof useColors>;
   onPress: () => void;
 }) {
-  const itemsCount = order.items.reduce((s, i) => s + i.quantity, 0);
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.orderCard,
         {
-          backgroundColor: colors.card,
+          backgroundColor: colors.background,
           borderColor: colors.border,
           borderRadius: colors.radius,
           opacity: pressed ? 0.9 : 1,
@@ -315,114 +238,132 @@ function OrderCard({
       <View style={styles.orderTop}>
         <View style={{ flex: 1 }}>
           <Text
-            style={[
-              styles.restaurant,
-              { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
-            ]}
+            style={[styles.restaurant, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
             numberOfLines={1}
           >
             {order.restaurantName}
           </Text>
-          <Text
-            style={[
-              styles.orderCode,
-              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-            ]}
-          >
-            #{order.code} · {itemsCount} art.
-          </Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text
-            style={[
-              styles.orderPrice,
-              { color: colors.primary, fontFamily: "Inter_700Bold" },
-            ]}
-          >
-            {order.driverEarningsMad + order.tipMad} DH
-          </Text>
-          {order.tipMad > 0 ? (
-            <Text
-              style={{
-                color: colors.warning,
-                fontFamily: "Inter_500Medium",
-                fontSize: 11,
-              }}
-            >
-              +{order.tipMad} pourboire
+          <View style={styles.metaRow}>
+            <Feather name="clock" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              ~{order.etaMinutes} min · {order.distanceKm.toFixed(1)} km
             </Text>
-          ) : null}
+          </View>
         </View>
-      </View>
-      <Row icon="map-pin" text={order.dropoffAddress} colors={colors} />
-      <View style={styles.orderMeta}>
-        <Feather name="navigation" size={13} color={colors.mutedForeground} />
-        <Text
-          style={[
-            styles.orderMetaText,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          {order.distanceKm.toFixed(1)} km · ~{order.etaMinutes} min
+        <Text style={[styles.orderPrice, { color: colors.success, fontFamily: "Inter_700Bold" }]}>
+          {order.driverEarningsMad + order.tipMad} DH
         </Text>
       </View>
-    </Pressable>
-  );
-}
 
-function Row({
-  icon,
-  text,
-  colors,
-}: {
-  icon: keyof typeof Feather.glyphMap;
-  text: string;
-  colors: ReturnType<typeof useColors>;
-}) {
-  return (
-    <View style={styles.row}>
-      <Feather name={icon} size={14} color={colors.primary} />
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.rowText,
-          { color: colors.foreground, fontFamily: "Inter_500Medium" },
+      <View style={styles.routeWrapper}>
+        <View style={styles.routeLine}>
+          <View style={[styles.routeDotOrigin, { backgroundColor: colors.foreground }]} />
+          <View style={[styles.routeConnector, { backgroundColor: colors.border }]} />
+          <View style={[styles.routeDotDest, { backgroundColor: colors.primary }]} />
+        </View>
+        <View style={styles.routeAddresses}>
+          <View style={styles.routeAddrRow}>
+            <Text style={[styles.routeAddrText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>
+              {order.pickupAddress}
+            </Text>
+            <Text style={[styles.routeAddrSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Retrait</Text>
+          </View>
+          <View style={[styles.routeAddrRow, { marginTop: 12 }]}>
+            <Text style={[styles.routeAddrText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>
+              {order.dropoffAddress}
+            </Text>
+            <Text style={[styles.routeAddrSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Livraison</Text>
+          </View>
+        </View>
+      </View>
+
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.acceptBtn,
+          { backgroundColor: colors.primary, borderRadius: colors.radius * 2, opacity: pressed ? 0.85 : 1 },
         ]}
       >
-        {text}
-      </Text>
-    </View>
+        <Text style={[styles.acceptBtnText, { color: colors.primaryForeground, fontFamily: "Inter_700Bold" }]}>
+          Accepter la course
+        </Text>
+      </Pressable>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  hello: { fontSize: 14 },
-  name: { fontSize: 24, marginBottom: 18 },
-  onlineCard: { padding: 18, borderWidth: 1, marginBottom: 18 },
-  onlineRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  onlineLabel: { fontSize: 14, letterSpacing: 1 },
-  onlineHint: { fontSize: 13 },
-  statsRow: { flexDirection: "row", gap: 8, marginBottom: 22 },
-  statCard: {
-    flex: 1,
-    padding: 12,
-    borderWidth: 1,
-    gap: 4,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    paddingTop: 4,
   },
-  statValue: { fontSize: 17, marginTop: 2 },
+  logoPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 50,
+  },
+  logoText: { fontSize: 14, letterSpacing: 1 },
+  greeting: { fontSize: 16 },
+  onlineCard: {
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: "center",
+    gap: 8,
+  },
+  onlineToggle: {
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    borderRadius: 50,
+  },
+  onlineToggleText: { color: "#fff", fontSize: 14 },
+  onlineStatus: { fontSize: 18, marginTop: 4 },
+  onlineHint: { fontSize: 13 },
+  statsRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
+  statCard: { flex: 1, padding: 14, borderWidth: 1, alignItems: "center", gap: 4 },
+  statValue: { fontSize: 22 },
   statLabel: { fontSize: 11 },
-  sectionTitle: { fontSize: 16, marginBottom: 8 },
-  orderCard: { padding: 14, borderWidth: 1, gap: 8 },
-  orderTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  restaurant: { fontSize: 15 },
-  orderCode: { fontSize: 11, marginTop: 2 },
-  orderPrice: { fontSize: 17 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rowText: { fontSize: 13, flex: 1 },
-  orderMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
-  orderMetaText: { fontSize: 12 },
-  empty: { alignItems: "center", paddingVertical: 50, gap: 10 },
-  emptyText: { fontSize: 14, textAlign: "center", paddingHorizontal: 20 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 18 },
+  orderCard: {
+    borderWidth: 1,
+    padding: 16,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  orderTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  restaurant: { fontSize: 16, marginBottom: 4 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  metaText: { fontSize: 13 },
+  orderPrice: { fontSize: 20 },
+  routeWrapper: { flexDirection: "row", gap: 12, paddingLeft: 4 },
+  routeLine: { alignItems: "center", paddingTop: 4 },
+  routeDotOrigin: { width: 8, height: 8, borderRadius: 4 },
+  routeConnector: { width: 2, flex: 1, marginVertical: 2, minHeight: 24 },
+  routeDotDest: { width: 8, height: 8, borderRadius: 2 },
+  routeAddresses: { flex: 1 },
+  routeAddrRow: {},
+  routeAddrText: { fontSize: 13 },
+  routeAddrSub: { fontSize: 11, marginTop: 2 },
+  acceptBtn: {
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  acceptBtnText: { fontSize: 15 },
+  empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
+  emptyText: { fontSize: 14, textAlign: "center", paddingHorizontal: 20, lineHeight: 22 },
 });

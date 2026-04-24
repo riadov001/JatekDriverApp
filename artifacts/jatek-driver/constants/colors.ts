@@ -1,69 +1,81 @@
 const colors = {
   light: {
-    text: "#0B1220",
-    tint: "#FF6000",
+    text: "#1A1A1A",
+    tint: "#E91E8C",
 
     background: "#FFFFFF",
-    foreground: "#0B1220",
+    foreground: "#1A1A1A",
 
-    card: "#FFF8F5",
-    cardForeground: "#0B1220",
+    card: "#F8F8F8",
+    cardForeground: "#1A1A1A",
 
-    primary: "#FF6000",
+    primary: "#E91E8C",
     primaryForeground: "#FFFFFF",
 
-    secondary: "#FFF0E6",
-    secondaryForeground: "#0B1220",
+    secondary: "#E8F9FD",
+    secondaryForeground: "#00B4D8",
 
-    muted: "#F5EDE8",
-    mutedForeground: "#8A6A5E",
+    muted: "#F8F8F8",
+    mutedForeground: "#757575",
 
-    accent: "#FFE0CC",
-    accentForeground: "#7A2E00",
+    accent: "#FDE8F3",
+    accentForeground: "#E91E8C",
 
     destructive: "#EF4444",
     destructiveForeground: "#FFFFFF",
 
-    success: "#16A34A",
-    warning: "#F59E0B",
+    success: "#9BA617",
+    successForeground: "#FFFFFF",
 
-    border: "#F0DDD5",
-    input: "#F0DDD5",
+    info: "#00B4D8",
+    infoForeground: "#FFFFFF",
+
+    warning: "#F59E0B",
+    warningForeground: "#FFFFFF",
+
+    border: "#EEEEEE",
+    input: "#EEEEEE",
   },
 
   dark: {
-    text: "#F8FAFC",
-    tint: "#FF7A29",
+    text: "#F0F0F0",
+    tint: "#F05AA0",
 
-    background: "#120800",
-    foreground: "#F8FAFC",
+    background: "#121212",
+    foreground: "#F0F0F0",
 
-    card: "#1F0F05",
-    cardForeground: "#F8FAFC",
+    card: "#1E1E1E",
+    cardForeground: "#F0F0F0",
 
-    primary: "#FF7A29",
-    primaryForeground: "#120800",
+    primary: "#F05AA0",
+    primaryForeground: "#121212",
 
-    secondary: "#2A1200",
-    secondaryForeground: "#F8FAFC",
+    secondary: "#0A2A30",
+    secondaryForeground: "#00CFF5",
 
-    muted: "#2A1200",
-    mutedForeground: "#B07050",
+    muted: "#1E1E1E",
+    mutedForeground: "#8A8A8A",
 
-    accent: "#7A2E00",
-    accentForeground: "#FFE0CC",
+    accent: "#3A0A22",
+    accentForeground: "#F05AA0",
 
     destructive: "#F87171",
     destructiveForeground: "#1A0707",
 
-    success: "#22C55E",
-    warning: "#FBBF24",
+    success: "#B8C820",
+    successForeground: "#121212",
 
-    border: "#2A1200",
-    input: "#2A1200",
+    info: "#00CFF5",
+    infoForeground: "#121212",
+
+    warning: "#FBBF24",
+    warningForeground: "#121212",
+
+    border: "#2A2A2A",
+    input: "#2A2A2A",
   },
 
-  radius: 14,
+  radius: 16,
 };
 
 export default colors;
