@@ -28,7 +28,7 @@
       "package": "ma.jatek.driver",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#FF6000"
+        "backgroundColor": "#E91E8C"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -67,7 +67,7 @@
       [
         "expo-notifications",
         {
-          "color": "#FF6000"
+          "color": "#E91E8C"
         }
       ],
       [
