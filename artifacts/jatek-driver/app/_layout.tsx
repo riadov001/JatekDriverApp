@@ -16,6 +16,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ActiveOrderProvider } from "@/context/ActiveOrderContext";
 import { AuthProvider, useAuthRouting } from "@/context/AuthContext";
 import { OnlineProvider } from "@/context/OnlineContext";
 import { useColors } from "@/hooks/useColors";
@@ -79,10 +80,12 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AuthProvider>
-                <OnlineProvider>
-                  <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-                  <RootLayoutNav />
-                </OnlineProvider>
+                <ActiveOrderProvider>
+                  <OnlineProvider>
+                    <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+                    <RootLayoutNav />
+                  </OnlineProvider>
+                </ActiveOrderProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

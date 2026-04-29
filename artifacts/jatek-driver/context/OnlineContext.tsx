@@ -12,11 +12,13 @@ import { setDriverOnline } from "@/lib/api";
 import {
   isLocationTrackingActive,
   requestLocationPermissions,
-  startLocationTracking,
+  startOnlineTracking,
   stopLocationTracking,
 } from "@/services/locationService";
+import { getDriverLocationClient } from "@/services/wsClient";
 
 import { useAuth } from "./AuthContext";
+import { useActiveOrder } from "./ActiveOrderContext";
 
 type OnlineState = {
   isOnline: boolean;
@@ -28,6 +30,7 @@ const Ctx = createContext<OnlineState | undefined>(undefined);
 
 export function OnlineProvider({ children }: { children: React.ReactNode }) {
   const { user, refresh } = useAuth();
+  const { activeOrderId } = useActiveOrder();
   const [isOnline, setIsOnline] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -48,18 +51,33 @@ export function OnlineProvider({ children }: { children: React.ReactNode }) {
 
   const toggleOnline = useCallback(async () => {
     if (toggling) return;
+
+    // Hard lock: cannot go offline while a course is active.
+    if (isOnline && activeOrderId) {
+      Alert.alert(
+        "Course en cours",
+        "Vous ne pouvez pas vous mettre hors ligne tant qu'une course est active. Terminez ou annulez la course d'abord.",
+      );
+      return;
+    }
+
     setToggling(true);
     try {
       if (!isOnline) {
         const perm = await requestLocationPermissions();
         if (!perm.granted) {
-          Alert.alert("Permission requise", perm.message ?? "Localisation refusée.");
+          Alert.alert(
+            "Permission requise",
+            perm.message ?? "Localisation refusée.",
+          );
           return;
         }
         if (!perm.background && perm.message) {
           Alert.alert("Conseil", perm.message);
         }
-        await startLocationTracking();
+        await startOnlineTracking();
+        // Open the driver-location WS as soon as we go online.
+        getDriverLocationClient().connect().catch(() => {});
         try {
           await setDriverOnline(true);
         } catch {
@@ -68,6 +86,7 @@ export function OnlineProvider({ children }: { children: React.ReactNode }) {
         setIsOnline(true);
       } else {
         await stopLocationTracking();
+        getDriverLocationClient().close();
         try {
           await setDriverOnline(false);
         } catch {}
@@ -80,7 +99,7 @@ export function OnlineProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setToggling(false);
     }
-  }, [isOnline, toggling, refresh]);
+  }, [isOnline, toggling, activeOrderId, refresh]);
 
   const value = useMemo(
     () => ({ isOnline, toggling, toggleOnline }),

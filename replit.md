@@ -34,6 +34,31 @@ The app uses a tri-color palette inspired by Uber Eats courier, with Jatek brand
 
 Color tokens in `constants/colors.ts`: `primary`, `info`, `success`, `secondary`, `accent`, `muted`, `warning`, `destructive`, `border`, `radius` (16).
 
+## Jatek Driver — GPS Tracking & WebSocket
+
+Real-time driver location is pushed to the backend over WebSocket. Architecture:
+
+**Backend (`artifacts/api-server`)**
+- HTTP and WS share the same Node `http.Server` (see `src/index.ts` + `src/lib/ws.ts`).
+- Two WS channels, both auth via `?token=<jwt>` query param:
+  - `wss://<host>/ws/driver-location` — driver-only; sends `{type:"location", latitude, longitude, heading, speed, timestamp, orderId?}`. Server replies with `location-ack`, persists to `driver.lastLat/lastLng/lastLocationAt`, and broadcasts to subscribers of the related order.
+  - `wss://<host>/ws/order-tracking` — any authed user; client subscribes with `{type:"subscribe", orderId}`. Server pushes `{type:"order-tracking", orderId, data:{latitude,longitude,heading,speed,updatedAt,orderStatus?}}`.
+- Heartbeat: server pings every 25s and terminates dead sockets (`ws.isAlive`).
+- `{type:"ping"}` from client gets `{type:"pong",t}`.
+
+**Driver app (`artifacts/jatek-driver`)**
+- `services/wsClient.ts` — `WsClient` with auto-reconnect (exponential backoff, jittered, max 30s), 25s heartbeat, message queue when offline, status listeners (`idle | connecting | open | closed | error | reconnecting`). Singletons via `getDriverLocationClient()` / `getOrderTrackingClient()`.
+- `services/locationService.ts` — two tracking modes:
+  - `startOnlineTracking()` — when driver toggles online; 15s cadence, `Accuracy.High`.
+  - `startActiveOrderTracking(orderId)` — when an order is active; 4s cadence, `Accuracy.BestForNavigation`, runs *both* a foreground `watchPositionAsync` (fast) and the background TaskManager task (resilient). Sets `activeOrderId` so every emitted location includes the order id.
+  - `stopLocationTracking(force=false)` — refuses to stop while an order is active unless `force=true`.
+  - `ensureAlwaysLocationPermission()` — strictly requires Background ("Always") on native before a course can begin.
+- `context/ActiveOrderContext.tsx` — owns active-order state, exposes `beginTracking(orderId)` / `endTracking()` and live `wsStatus`.
+- `context/OnlineContext.tsx` — blocks the offline toggle while an active order exists.
+- `app/order/[id].tsx` — auto-calls `beginTracking` when status enters `accepted/arrived_pickup/picked_up/arrived_dropoff` and `endTracking` when it leaves; renders a `LiveStatusBadge` reflecting WS connection state.
+- Background `expo-location` task is registered at module load via side-effect import in `app/_layout.tsx`.
+- iOS `UIBackgroundModes: ["location","fetch"]` and Android `ACCESS_BACKGROUND_LOCATION` + `FOREGROUND_SERVICE_LOCATION` are already declared in `app.json`.
+
 ## Jatek Driver — Backend targets
 
 The driver app (`artifacts/jatek-driver`) supports two backend targets, switchable from the login screen:

@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DeliveryCodeModal } from "@/components/DeliveryCodeModal";
 import { DeliveryMap } from "@/components/DeliveryMap";
+import { useActiveOrder } from "@/context/ActiveOrderContext";
 import { useColors } from "@/hooks/useColors";
 import { useOrderNotifications } from "@/hooks/useOrderNotifications";
 import {
@@ -32,6 +33,7 @@ import {
   type OrderStatus,
   type PaymentMethod,
 } from "@/lib/api";
+import type { WsStatus } from "@/services/wsClient";
 
 const STEPS: { key: OrderStatus; label: string }[] = [
   { key: "accepted", label: "Vers le commerçant" },
@@ -49,6 +51,8 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [codeModal, setCodeModal] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
+  const { activeOrderId, trackingActive, wsStatus, beginTracking, endTracking } =
+    useActiveOrder();
 
   const order = useQuery({
     queryKey: ["order", id],
@@ -58,6 +62,26 @@ export default function OrderDetailScreen() {
   });
 
   useOrderNotifications(order.data?.status);
+
+  // Auto-start tracking when this order becomes active and auto-stop when it
+  // closes. Acts as a safety net even if the user navigates away during accept.
+  useEffect(() => {
+    const status = order.data?.status;
+    if (!id || !status) return;
+    const isActiveStatus =
+      status === "accepted" ||
+      status === "arrived_pickup" ||
+      status === "picked_up" ||
+      status === "arrived_dropoff";
+    if (isActiveStatus && activeOrderId !== id) {
+      beginTracking(id).then((err) => {
+        if (err) console.warn("[order] auto-start tracking failed:", err);
+      });
+    }
+    if (!isActiveStatus && activeOrderId === id) {
+      endTracking().catch((e) => console.warn("[order] stop tracking", e));
+    }
+  }, [id, order.data?.status, activeOrderId, beginTracking, endTracking]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["order", id] });
@@ -177,6 +201,14 @@ export default function OrderDetailScreen() {
         )}
 
         <Stepper status={o.status} colors={colors} />
+
+        {activeOrderId === o.id ? (
+          <LiveStatusBadge
+            wsStatus={wsStatus}
+            tracking={trackingActive}
+            colors={colors}
+          />
+        ) : null}
 
         <Card colors={colors}>
           <Stop
@@ -383,6 +415,54 @@ function openMaps(lat: number, lng: number) {
     default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
   });
   Linking.openURL(url!).catch(() => {});
+}
+
+function LiveStatusBadge({
+  wsStatus,
+  tracking,
+  colors,
+}: {
+  wsStatus: WsStatus;
+  tracking: boolean;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const map: Record<WsStatus, { label: string; bg: string; fg: string; icon: keyof typeof Feather.glyphMap }> = {
+    idle: { label: "En attente…", bg: colors.muted, fg: colors.foreground, icon: "clock" },
+    connecting: { label: "Connexion…", bg: colors.muted, fg: colors.foreground, icon: "loader" },
+    open: { label: tracking ? "Suivi GPS LIVE" : "Connecté", bg: "#1f7a3a", fg: "#ffffff", icon: "radio" },
+    closed: { label: "Hors-ligne", bg: colors.destructive, fg: "#ffffff", icon: "wifi-off" },
+    error: { label: "Erreur connexion", bg: colors.destructive, fg: "#ffffff", icon: "alert-triangle" },
+    reconnecting: { label: "Reconnexion…", bg: colors.warning, fg: "#1f1300", icon: "refresh-cw" },
+  };
+  const m = map[wsStatus];
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        alignSelf: "flex-start",
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        backgroundColor: m.bg,
+        borderRadius: colors.radius / 2,
+        marginTop: 12,
+        marginBottom: 8,
+      }}
+    >
+      <Feather name={m.icon} size={12} color={m.fg} />
+      <Text
+        style={{
+          color: m.fg,
+          fontFamily: "Inter_600SemiBold",
+          fontSize: 11,
+          letterSpacing: 0.3,
+        }}
+      >
+        {m.label}
+      </Text>
+    </View>
+  );
 }
 
 function PaymentBadge({
