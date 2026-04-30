@@ -3,42 +3,52 @@ const TOKEN_KEY = "jatek_merchant_token";
 const RESTAURANT_ID_KEY = "jatek_merchant_restaurantId";
 
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
 }
 
 export interface Restaurant {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   address?: string;
-  ownerId?: string;
+  ownerId?: number;
+  cuisine?: string;
+  phone?: string;
 }
 
 export interface OrderItem {
-  id: string;
+  id: number;
+  orderId: number;
+  menuItemId: number;
+  menuItemName: string;
   quantity: number;
-  price: number;
-  menuItem?: {
-    id: string;
-    name: string;
-    price: number;
-  };
+  unitPrice: number;
+  totalPrice: number;
 }
 
 export interface Order {
-  id: string;
+  id: number;
+  reference: string;
+  userId: number;
+  restaurantId: number;
+  driverId: number | null;
+  restaurantName: string;
+  userName: string;
   status: "pending" | "preparing" | "ready" | "picked_up" | "delivered" | "cancelled";
-  totalAmount: number;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
   deliveryAddress: string;
+  notes: string | null;
+  estimatedDeliveryTime: number;
+  kitchenCode: string | null;
+  pickupCode: string | null;
   createdAt: string;
-  customer?: {
-    id: string;
-    name: string;
-  };
-  items?: OrderItem[];
+  updatedAt: string;
+  items: OrderItem[];
 }
 
 function getToken() {
@@ -82,7 +92,6 @@ async function request(endpoint: string, options: RequestInit = {}) {
     throw new Error(errorData.message || `API error: ${response.status} ${response.statusText}`);
   }
 
-  // Handle 204 No Content
   if (response.status === 204) {
     return null;
   }
@@ -121,10 +130,10 @@ export const api = {
     },
   },
   orders: {
-    listByRestaurant: async (restaurantId: string): Promise<Order[]> => {
+    listByRestaurant: async (restaurantId: number): Promise<Order[]> => {
       return request(`/orders?restaurantId=${restaurantId}`);
     },
-    updateStatus: async (orderId: string, status: string): Promise<Order> => {
+    updateStatus: async (orderId: number, status: string): Promise<Order> => {
       return request(`/orders/${orderId}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status }),

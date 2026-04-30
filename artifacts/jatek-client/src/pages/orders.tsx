@@ -2,14 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, CheckCircle2, ChefHat, Bike, Package } from "lucide-react";
+import { Clock, CheckCircle2, ChefHat, Bike, Package, Receipt } from "lucide-react";
 import { format } from "date-fns";
 
 export default function OrdersPage() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.list,
-    refetchInterval: 15000, // Poll every 15s
+    refetchInterval: 15000,
   });
 
   const getStatusIcon = (status: string) => {
@@ -18,7 +18,7 @@ export default function OrdersPage() {
       case 'accepted': return <CheckCircle2 className="text-blue-500" />;
       case 'preparing': return <ChefHat className="text-orange-500" />;
       case 'ready': return <Package className="text-purple-500" />;
-      case 'delivering': return <Bike className="text-secondary" />;
+      case 'picked_up': return <Bike className="text-secondary" />;
       case 'delivered': return <CheckCircle2 className="text-green-500" />;
       case 'cancelled': return <CheckCircle2 className="text-destructive" />;
       default: return <Clock className="text-muted-foreground" />;
@@ -31,10 +31,17 @@ export default function OrdersPage() {
       case 'accepted': return 'bg-blue-500/10 text-blue-600 border-blue-200';
       case 'preparing': return 'bg-orange-500/10 text-orange-600 border-orange-200';
       case 'ready': return 'bg-purple-500/10 text-purple-600 border-purple-200';
-      case 'delivering': return 'bg-secondary/10 text-secondary border-secondary/30';
+      case 'picked_up': return 'bg-secondary/10 text-secondary border-secondary/30';
       case 'delivered': return 'bg-green-500/10 text-green-600 border-green-200';
       case 'cancelled': return 'bg-destructive/10 text-destructive border-destructive/20';
       default: return 'bg-muted text-muted-foreground border-border';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'picked_up': return 'On the way';
+      default: return status.replace(/_/g, ' ');
     }
   };
 
@@ -81,23 +88,24 @@ export default function OrdersPage() {
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-bold text-lg">{order.restaurant?.name || 'Restaurant'}</h3>
+                      <h3 className="font-bold text-lg">{order.restaurantName}</h3>
+                      <p className="text-xs text-muted-foreground font-mono">{order.reference}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(order.createdAt), "MMM d, yyyy • h:mm a")}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-lg">{order.totalAmount.toFixed(2)} MAD</p>
+                      <p className="font-bold text-lg">{order.total.toFixed(2)} MAD</p>
                     </div>
                   </div>
 
                   <div className="border-t border-b border-border py-3 my-4">
                     <p className="text-sm font-medium mb-2">Items:</p>
                     <ul className="text-sm text-muted-foreground space-y-1">
-                      {order.items?.map((item, i) => (
-                        <li key={i} className="flex justify-between">
-                          <span>{item.quantity}x {item.menuItemId}</span>
-                          <span>{(item.price * item.quantity).toFixed(2)} MAD</span>
+                      {order.items?.map((item) => (
+                        <li key={item.id} className="flex justify-between">
+                          <span>{item.quantity}x {item.menuItemName}</span>
+                          <span>{item.totalPrice.toFixed(2)} MAD</span>
                         </li>
                       ))}
                     </ul>
@@ -108,7 +116,7 @@ export default function OrdersPage() {
                       {getStatusIcon(order.status)}
                     </div>
                     <div>
-                      <p className="font-bold capitalize text-sm">{order.status}</p>
+                      <p className="font-bold capitalize text-sm">{getStatusLabel(order.status)}</p>
                       {isLatest && order.status.toLowerCase() !== 'delivered' && (
                         <p className="text-xs opacity-80 mt-0.5">Auto-refreshing status...</p>
                       )}
@@ -123,6 +131,3 @@ export default function OrdersPage() {
     </Layout>
   );
 }
-
-// Quick fallback icon import missing above
-import { Receipt } from "lucide-react";

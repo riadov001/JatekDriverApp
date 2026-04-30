@@ -28,14 +28,13 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     if (user && restaurants) {
       const storedId = api.getRestaurantId();
       if (storedId) {
-        const found = restaurants.find((r) => r.id === storedId);
+        const found = restaurants.find((r) => String(r.id) === storedId);
         if (found) {
           setSelectedRestaurant(found);
           return;
         }
       }
-      
-      // No valid stored ID
+
       if (restaurants.length === 1) {
         setRestaurant(restaurants[0]);
       } else if (restaurants.length > 1) {
@@ -45,7 +44,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   }, [user, restaurants]);
 
   const setRestaurant = (restaurant: Restaurant) => {
-    api.setRestaurantId(restaurant.id);
+    api.setRestaurantId(String(restaurant.id));
     setSelectedRestaurant(restaurant);
     setIsPickerOpen(false);
   };
@@ -86,7 +85,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
               ))
             ) : (
               <div className="text-center py-4 text-muted-foreground">
-                No restaurants found for your account.
+                No restaurants found.
               </div>
             )}
           </div>

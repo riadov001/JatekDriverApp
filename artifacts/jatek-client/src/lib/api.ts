@@ -11,6 +11,11 @@ export interface Restaurant {
   address?: string;
   phone?: string;
   imageUrl?: string;
+  cuisine?: string;
+  deliveryTime?: number;
+  minimumOrder?: number;
+  deliveryFee?: number;
+  rating?: number;
 }
 export interface MenuItem {
   id: number;
@@ -21,24 +26,49 @@ export interface MenuItem {
   category?: string;
   restaurantId: number;
 }
-export interface OrderItem {
+
+export interface ReceivedOrderItem {
+  id: number;
+  orderId: number;
+  menuItemId: number;
+  menuItemName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface CreateOrderItem {
   menuItemId: number;
   quantity: number;
   price: number;
 }
+
 export interface CreateOrderPayload {
   restaurantId: number;
-  items: OrderItem[];
+  items: CreateOrderItem[];
   deliveryAddress: string;
 }
+
 export interface Order {
   id: number;
+  reference: string;
+  userId: number;
+  restaurantId: number;
+  driverId: number | null;
+  restaurantName: string;
+  userName: string;
   status: string;
-  totalAmount: number;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
   deliveryAddress: string;
+  notes: string | null;
+  estimatedDeliveryTime: number;
+  kitchenCode: string | null;
+  pickupCode: string | null;
   createdAt: string;
-  restaurant?: Restaurant;
-  items?: OrderItem[];
+  updatedAt: string;
+  items: ReceivedOrderItem[];
 }
 
 const BASE = "https://ma.jatek.app/api";

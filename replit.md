@@ -24,6 +24,69 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
+## Production Backend
+
+All three apps (driver, client, merchant) connect to the production backend at:
+**`https://ma.jatek.app/api`**
+
+### Key API Routes
+- `POST /auth/login` — email + password → JWT token
+- `POST /auth/register` — create account with `role: customer|driver|restaurant_owner`
+- `GET /auth/me` — current user (id, name, email, role)
+- `GET /api/restaurants` — list all restaurants
+- `GET /api/restaurants/{id}/menu` — menu items for restaurant
+- `GET /api/orders` — customer sees own orders; restaurant_owner sees owned restaurant orders
+- `GET /api/orders?restaurantId={id}` — orders for a specific restaurant (works for any restaurant_owner)
+- `POST /api/orders` — create order (customer auth)
+- `PATCH /api/orders/{id}/status` — update status (restaurant_owner)
+- `PATCH /api/orders/{id}` — driver accept/update
+- `GET /api/orders/available` — orders with status "ready" (driver use)
+- `GET /api/drivers` — list all drivers
+
+### Test Accounts
+- Customer: `client.test@jatek.app / Jatek2026!` (userId: 67)
+- Merchant: `marchand.test@jatek.app / Jatek2026!` (userId: 68, role: restaurant_owner)
+- Driver: `chauffeur.test@jatek.app / Jatek2026!` (driverId: 4)
+
+### Order Object Structure (from API)
+```json
+{
+  "id": 4,              // number
+  "reference": "JTK-2604-F2R9MX",
+  "userName": "Test Client",
+  "restaurantName": "Burger Station",
+  "status": "pending|preparing|ready|picked_up|delivered|cancelled",
+  "total": 55,
+  "subtotal": 55,
+  "deliveryFee": 0,
+  "deliveryAddress": "...",
+  "items": [{ "menuItemName": "...", "quantity": 1, "unitPrice": 55, "totalPrice": 55 }]
+}
+```
+
+## Artifacts
+
+### Jatek Driver (`artifacts/jatek-driver`)
+- **Type**: Expo React Native mobile app
+- **Auth**: email + password, role=driver
+- **Key fix**: `PROD_BASE = https://ma.jatek.app/api`, `getMe()` matches driver from `/api/drivers` list by userId
+- **Features**: Online/offline toggle, order notifications, order acceptance, delivery tracking
+
+### Jatek Client (`artifacts/jatek-client`)
+- **Type**: React + Vite web app (mobile-first)
+- **Auth**: email + password, role=customer
+- **Pages**: Login/Register, Restaurant list (home), Restaurant detail + menu, Cart + checkout, Order history (live polling 15s)
+- **API client**: `src/lib/api.ts` — direct fetch to ma.jatek.app with JWT from localStorage (`jatek_token`)
+- **Contexts**: Auth (`src/lib/auth.tsx`), Cart (`src/lib/cart.tsx`)
+
+### Jatek Merchant (`artifacts/jatek-merchant`)
+- **Type**: React + Vite web app (desktop dashboard)
+- **Auth**: email + password, role=restaurant_owner
+- **Pages**: Login, Kanban order dashboard (3 columns: Pending / Preparing / Ready, 8s polling)
+- **API client**: `src/lib/api.ts` — direct fetch to ma.jatek.app with JWT from localStorage (`jatek_merchant_token`)
+- **Restaurant picker**: On login, opens a modal to select which restaurant to manage; stored in `jatek_merchant_restaurantId`
+- **Note**: Any restaurant_owner can see orders for any restaurant via `GET /api/orders?restaurantId={id}`
+
 ## Jatek Driver — Design System
 
 The app uses a tri-color palette inspired by Uber Eats courier, with Jatek branding:
@@ -34,13 +97,9 @@ The app uses a tri-color palette inspired by Uber Eats courier, with Jatek brand
 
 Color tokens in `constants/colors.ts`: `primary`, `info`, `success`, `secondary`, `accent`, `muted`, `warning`, `destructive`, `border`, `radius` (16).
 
-## Jatek Driver — Backend targets
-
-The driver app (`artifacts/jatek-driver`) supports two backend targets, switchable from the login screen:
-
-- **Démo (OTP)** → local in-memory `api-server` (rich features: tips, promotions, multi-step delivery, delivery code `000000`).
-- **Production** → `https://backend.jatek.app/api` (real Google App Engine REST API, email + password auth, integer IDs).
-
-Selection is persisted in `expo-secure-store` under `jatek_driver_api_target`. The runtime adapter in `lib/api.ts` maps the prod schema (`isAvailable`, `nationalId`, `pickupCode`, `vehicleType: "Moto"`, etc.) onto the in-app types so all screens work against either backend without changes. Features that prod doesn't expose (tips, promotions) gracefully degrade to empty/zero on prod.
+Both web apps (jatek-client, jatek-merchant) use the same Jatek brand tokens in `index.css`:
+- Primary: Rose Magenta `hsl(327 81% 52%)`
+- Secondary: Turquoise Blue `hsl(191 100% 42%)`
+- Font: Inter
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
