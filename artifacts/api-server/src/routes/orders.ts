@@ -1,8 +1,11 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { requireAuth, requireDriver } from "../middlewares/auth";
 import { orders, users, type OrderStatus } from "../lib/store";
 
 const router: IRouter = Router();
+
+type IdParams = { id: string };
+type IdHandler = RequestHandler<IdParams>;
 
 function driverIdOf(req: { auth?: { sub: string } }): string | null {
   return users.get(req.auth!.sub)?.driver?.id ?? null;
@@ -27,7 +30,7 @@ router.get("/orders/mine", requireAuth, requireDriver, (req, res) => {
   res.json(list);
 });
 
-router.get("/orders/:id", requireAuth, requireDriver, (req, res) => {
+const getOrderById: IdHandler = (req, res) => {
   const o = orders.get(req.params.id);
   if (!o) {
     res.status(404).json({ message: "Course introuvable" });
@@ -39,7 +42,8 @@ router.get("/orders/:id", requireAuth, requireDriver, (req, res) => {
     return;
   }
   res.json(o);
-});
+};
+router.get("/orders/:id", requireAuth, requireDriver, getOrderById);
 
 function transition(
   req: {
@@ -84,33 +88,37 @@ function transition(
   res.json(o);
 }
 
-router.post("/orders/:id/accept", requireAuth, requireDriver, (req, res) => {
+const acceptOrder: IdHandler = (req, res) => {
   transition(req, res, ["pending", "assigned"], "accepted");
-});
+};
+router.post("/orders/:id/accept", requireAuth, requireDriver, acceptOrder);
 
+const arrivedPickup: IdHandler = (req, res) => {
+  transition(req, res, ["accepted"], "arrived_pickup");
+};
 router.post(
   "/orders/:id/arrived-pickup",
   requireAuth,
   requireDriver,
-  (req, res) => {
-    transition(req, res, ["accepted"], "arrived_pickup");
-  },
+  arrivedPickup,
 );
 
-router.post("/orders/:id/picked-up", requireAuth, requireDriver, (req, res) => {
+const pickedUp: IdHandler = (req, res) => {
   transition(req, res, ["accepted", "arrived_pickup"], "picked_up");
-});
+};
+router.post("/orders/:id/picked-up", requireAuth, requireDriver, pickedUp);
 
+const arrivedDropoff: IdHandler = (req, res) => {
+  transition(req, res, ["picked_up"], "arrived_dropoff");
+};
 router.post(
   "/orders/:id/arrived-dropoff",
   requireAuth,
   requireDriver,
-  (req, res) => {
-    transition(req, res, ["picked_up"], "arrived_dropoff");
-  },
+  arrivedDropoff,
 );
 
-router.post("/orders/:id/delivered", requireAuth, requireDriver, (req, res) => {
+const deliveredHandler: IdHandler = (req, res) => {
   const o = orders.get(req.params.id);
   if (o) {
     const provided = (req.body as { deliveryCode?: string } | undefined)
@@ -129,13 +137,15 @@ router.post("/orders/:id/delivered", requireAuth, requireDriver, (req, res) => {
       if (oo) oo.deliveredAt = Date.now();
     },
   );
-});
+};
+router.post("/orders/:id/delivered", requireAuth, requireDriver, deliveredHandler);
 
-router.post("/orders/:id/cancel", requireAuth, requireDriver, (req, res) => {
+const cancelOrder: IdHandler = (req, res) => {
   transition(req, res, ["accepted", "arrived_pickup"], "cancelled");
-});
+};
+router.post("/orders/:id/cancel", requireAuth, requireDriver, cancelOrder);
 
-router.get("/orders/:id/tracking", requireAuth, (req, res) => {
+const trackingHandler: IdHandler = (req, res) => {
   const o = orders.get(req.params.id);
   if (!o) {
     res.status(404).json({ message: "Course introuvable" });
@@ -164,6 +174,7 @@ router.get("/orders/:id/tracking", requireAuth, (req, res) => {
     dropoffLat: o.dropoffLat,
     dropoffLng: o.dropoffLng,
   });
-});
+};
+router.get("/orders/:id/tracking", requireAuth, trackingHandler);
 
 export default router;
