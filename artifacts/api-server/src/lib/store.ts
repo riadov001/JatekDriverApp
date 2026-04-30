@@ -231,7 +231,7 @@ function seed(): void {
       id: oid,
       code: orderCode(),
       createdAt: new Date().toISOString(),
-      deliveryCode: code4(),
+      deliveryCode: "1234",
     });
   }
 }
