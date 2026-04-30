@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/jatek-merchant/"
+title = "Jatek Merchant"
+version = "1.0.0"
+id = "artifacts/jatek-merchant"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/jatek-merchant/" ]
+localPort = 26212
+
+[services.development]
+run = "pnpm --filter @workspace/jatek-merchant run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/jatek-merchant", "run", "build" ]
+publicDir = "artifacts/jatek-merchant/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26212"
+BASE_PATH = "/jatek-merchant/"

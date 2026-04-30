@@ -14,19 +14,21 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { loginWithCredentials, sendOtp } from "@/lib/api";
-import {
-  ApiTarget,
-  getApiTarget,
-  setApiTarget,
-} from "@/lib/apiTarget";
+import { loginWithCredentials, registerWithCredentials, sendOtp } from "@/lib/api";
+import { ApiTarget, getApiTarget, setApiTarget } from "@/lib/apiTarget";
+
+type Mode = "login" | "register";
 
 export default function LoginScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signIn } = useAuth();
   const [target, setTarget] = useState<ApiTarget>("local");
+  const [mode, setMode] = useState<Mode>("login");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,11 +41,14 @@ export default function LoginScreen() {
 
   const cleanPhone = phone.replace(/\s+/g, "");
   const localValid = cleanPhone.length >= 9;
-  const prodValid = email.includes("@") && password.length >= 4;
+  const prodLoginValid = email.includes("@") && password.length >= 4;
+  const prodRegisterValid = name.trim().length >= 2 && prodLoginValid;
+  const prodValid = mode === "register" ? prodRegisterValid : prodLoginValid;
   const valid = target === "prod" ? prodValid : localValid;
 
   const onChangeTarget = async (next: ApiTarget) => {
     setError(null);
+    setMode("login");
     setTarget(next);
     await setApiTarget(next);
   };
@@ -57,14 +62,18 @@ export default function LoginScreen() {
     }
     try {
       if (target === "prod") {
-        await loginWithCredentials(email.trim(), password);
-        router.replace("/");
+        if (mode === "register") {
+          const { token } = await registerWithCredentials(name.trim(), email.trim(), password, "driver");
+          await signIn(token);
+          router.replace("/");
+        } else {
+          const { token } = await loginWithCredentials(email.trim(), password);
+          await signIn(token);
+          router.replace("/");
+        }
       } else {
         await sendOtp(cleanPhone);
-        router.push({
-          pathname: "/(auth)/otp",
-          params: { phone: cleanPhone },
-        });
+        router.push({ pathname: "/(auth)/otp", params: { phone: cleanPhone } });
       }
     } catch (e) {
       const msg =
@@ -72,10 +81,7 @@ export default function LoginScreen() {
           ? String((e as { message: unknown }).message)
           : "Erreur réseau";
       if (target === "local") {
-        router.push({
-          pathname: "/(auth)/otp",
-          params: { phone: cleanPhone },
-        });
+        router.push({ pathname: "/(auth)/otp", params: { phone: cleanPhone } });
       }
       setError(msg);
     } finally {
@@ -104,11 +110,13 @@ export default function LoginScreen() {
       </View>
 
       <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        Bienvenue sur Jatek Driver
+        {mode === "register" ? "Créer un compte chauffeur" : "Bienvenue sur Jatek Driver"}
       </Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
         {target === "prod"
-          ? "Connectez-vous avec votre email et mot de passe"
+          ? mode === "register"
+            ? "Inscrivez-vous pour commencer à livrer"
+            : "Connectez-vous avec votre email et mot de passe"
           : "Connectez-vous pour commencer vos livraisons"}
       </Text>
 
@@ -119,18 +127,9 @@ export default function LoginScreen() {
             <Pressable
               key={t}
               onPress={() => onChangeTarget(t)}
-              style={[
-                styles.toggleBtn,
-                { backgroundColor: active ? colors.primary : "transparent" },
-              ]}
+              style={[styles.toggleBtn, { backgroundColor: active ? colors.primary : "transparent" }]}
             >
-              <Text
-                style={{
-                  color: active ? colors.primaryForeground : colors.mutedForeground,
-                  fontFamily: "Inter_600SemiBold",
-                  fontSize: 14,
-                }}
-              >
+              <Text style={{ color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
                 {t === "local" ? "Démo (OTP)" : "Production"}
               </Text>
             </Pressable>
@@ -141,7 +140,24 @@ export default function LoginScreen() {
       <View style={styles.form}>
         {target === "prod" ? (
           <>
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            {mode === "register" && (
+              <>
+                <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  Nom complet
+                </Text>
+                <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Mohammed Alami"
+                    placeholderTextColor={colors.mutedForeground}
+                    autoCapitalize="words"
+                    style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                  />
+                </View>
+              </>
+            )}
+            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: mode === "register" ? 12 : 0 }]}>
               Email
             </Text>
             <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
@@ -171,26 +187,22 @@ export default function LoginScreen() {
             </View>
           </>
         ) : (
-          <>
-            <View style={[styles.phoneRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
-              <View style={[styles.dialBox, { borderRightColor: colors.border, backgroundColor: colors.muted }]}>
-                <Text style={styles.flag}>🇲🇦</Text>
-                <Text style={[styles.dial, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                  +212
-                </Text>
-                <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
-              </View>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="6 12 34 56 78"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="phone-pad"
-                autoFocus
-                style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium", flex: 1 }]}
-              />
+          <View style={[styles.phoneRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
+            <View style={[styles.dialBox, { borderRightColor: colors.border, backgroundColor: colors.muted }]}>
+              <Text style={styles.flag}>🇲🇦</Text>
+              <Text style={[styles.dial, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>+212</Text>
+              <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
             </View>
-          </>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="6 12 34 56 78"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="phone-pad"
+              autoFocus
+              style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium", flex: 1 }]}
+            />
+          </View>
         )}
 
         {error ? (
@@ -201,9 +213,16 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.bottom}>
+        {target === "prod" && (
+          <Pressable onPress={() => { setError(null); setMode(mode === "login" ? "register" : "login"); }}>
+            <Text style={[styles.switchLink, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+              {mode === "login" ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+            </Text>
+          </Pressable>
+        )}
         <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
           {target === "prod"
-            ? "Backend connecté : backend.jatek.app"
+            ? "Backend : ma.jatek.app"
             : "En continuant, vous acceptez les conditions d'utilisation de Jatek."}
         </Text>
         <Pressable
@@ -211,25 +230,14 @@ export default function LoginScreen() {
           disabled={!valid || loading}
           style={({ pressed }) => [
             styles.button,
-            {
-              backgroundColor: valid ? colors.primary : colors.muted,
-              opacity: pressed ? 0.85 : 1,
-            },
+            { backgroundColor: valid ? colors.primary : colors.muted, opacity: pressed ? 0.85 : 1 },
           ]}
         >
           {loading ? (
             <ActivityIndicator color={colors.primaryForeground} />
           ) : (
-            <Text
-              style={[
-                styles.buttonText,
-                {
-                  color: valid ? colors.primaryForeground : colors.mutedForeground,
-                  fontFamily: "Inter_700Bold",
-                },
-              ]}
-            >
-              {target === "prod" ? "Se connecter" : "Continuer"}
+            <Text style={[styles.buttonText, { color: valid ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_700Bold" }]}>
+              {target === "prod" ? (mode === "register" ? "Créer mon compte" : "Se connecter") : "Continuer"}
             </Text>
           )}
         </Pressable>
@@ -241,67 +249,25 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 32 },
   logoArea: { alignItems: "center", marginBottom: 32, gap: 8 },
-  logoPill: {
-    paddingHorizontal: 32,
-    paddingVertical: 10,
-    borderRadius: 50,
-  },
+  logoPill: { paddingHorizontal: 32, paddingVertical: 10, borderRadius: 50 },
   logoText: { fontSize: 40, letterSpacing: -1 },
   logoSub: { fontSize: 18, letterSpacing: 6 },
   title: { fontSize: 24, marginBottom: 8 },
   subtitle: { fontSize: 15, marginBottom: 24, lineHeight: 22 },
-  toggleRow: {
-    flexDirection: "row",
-    borderRadius: 50,
-    borderWidth: 1,
-    padding: 4,
-    marginBottom: 24,
-    gap: 4,
-  },
-  toggleBtn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 50,
-  },
+  toggleRow: { flexDirection: "row", borderRadius: 50, borderWidth: 1, padding: 4, marginBottom: 24, gap: 4 },
+  toggleBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 50 },
   form: { gap: 8 },
   label: { fontSize: 13, marginBottom: 4, marginLeft: 2 },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 56,
-  },
-  phoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderRadius: 16,
-    height: 56,
-    overflow: "hidden",
-  },
-  dialBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    height: "100%",
-    borderRightWidth: 1,
-    gap: 6,
-  },
+  inputRow: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 16, height: 56 },
+  phoneRow: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 16, height: 56, overflow: "hidden" },
+  dialBox: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: "100%", borderRightWidth: 1, gap: 6 },
   flag: { fontSize: 20 },
   dial: { fontSize: 15 },
   textInput: { flex: 1, fontSize: 16, paddingHorizontal: 16, height: "100%" },
   error: { fontSize: 13, marginTop: 4 },
-  bottom: { marginTop: "auto", paddingTop: 32, gap: 16 },
+  bottom: { marginTop: "auto", paddingTop: 32, gap: 12 },
+  switchLink: { textAlign: "center", fontSize: 14 },
   legal: { fontSize: 12, textAlign: "center", lineHeight: 18, paddingHorizontal: 8 },
-  button: {
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 28,
-  },
+  button: { height: 56, alignItems: "center", justifyContent: "center", borderRadius: 28 },
   buttonText: { fontSize: 17 },
 });

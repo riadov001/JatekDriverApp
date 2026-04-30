@@ -353,16 +353,58 @@ export async function getMe(): Promise<Me> {
   const target = await getApiTarget();
   if (target === "prod") {
     const u = await request<ProdMe>("/auth/me");
+    let driver: DriverProfile | null = u.driver ? mapProdDriver(u.driver) : null;
+    if (!driver && (u.role === "driver")) {
+      try {
+        const drivers = await request<ProdDriver[]>("/drivers", {}, false);
+        const matched = drivers.find((d) => d.userId === u.id);
+        if (matched) driver = mapProdDriver(matched);
+      } catch {
+        // ignore – driver list may require auth on some backends
+        try {
+          const drivers = await request<ProdDriver[]>("/drivers");
+          const matched = drivers.find((d) => d.userId === u.id);
+          if (matched) driver = mapProdDriver(matched);
+        } catch {
+          // give up silently
+        }
+      }
+    }
     return {
       id: String(u.id),
       phone: u.phone ?? "",
       email: u.email ?? null,
       role: ((u.role as Role) ?? "driver") as Role,
       fullName: u.name ?? null,
-      driver: u.driver ? mapProdDriver(u.driver) : null,
+      driver,
     };
   }
   return request<Me>("/users/me");
+}
+
+export async function registerWithCredentials(
+  name: string,
+  email: string,
+  password: string,
+  role: "driver" | "customer" | "restaurant_owner" = "driver",
+): Promise<{ token: string }> {
+  const data = await request<Record<string, unknown>>(
+    "/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify({ name, email, password, role }),
+    },
+    false,
+  );
+  const token =
+    (typeof data.token === "string" && data.token) ||
+    (typeof data.accessToken === "string" && data.accessToken) ||
+    null;
+  if (!token) {
+    throw { status: 500, message: "Réponse d'inscription invalide.", data } as ApiError;
+  }
+  await setToken(token);
+  return { token };
 }
 
 // ───────────────────────── Driver profile ─────────────────────────
