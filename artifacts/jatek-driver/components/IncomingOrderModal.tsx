@@ -9,11 +9,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  Vibration,
   View,
 } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useNewOrderAlert } from "@/hooks/useNewOrderAlert";
 import { acceptOrder, type Order } from "@/lib/api";
 
 const COUNTDOWN_SECONDS = 20;
@@ -33,6 +33,8 @@ export function IncomingOrderModal({
   const [secondsLeft, setSecondsLeft] = useState(COUNTDOWN_SECONDS);
   const progress = useRef(new Animated.Value(1)).current;
 
+  useNewOrderAlert(order, visible);
+
   const accept = useMutation({
     mutationFn: (id: string) => acceptOrder(id),
     onSuccess: (o) => {
@@ -48,7 +50,6 @@ export function IncomingOrderModal({
     if (!visible || !order) return;
     setSecondsLeft(COUNTDOWN_SECONDS);
     progress.setValue(1);
-    Vibration.vibrate(400);
     Animated.timing(progress, {
       toValue: 0,
       duration: COUNTDOWN_SECONDS * 1000,

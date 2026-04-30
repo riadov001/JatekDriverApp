@@ -2,7 +2,7 @@ import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
-import type { OrderStatus } from "@/lib/api";
+import type { Order, OrderStatus } from "@/lib/api";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -46,7 +46,7 @@ const STEP_MESSAGES: Partial<Record<OrderStatus, StepMessage>> = {
   },
 };
 
-async function requestNotificationPermissions(): Promise<boolean> {
+export async function requestNotificationPermissions(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === "granted") return true;
@@ -63,6 +63,22 @@ async function sendLocalNotification(status: OrderStatus): Promise<void> {
       body: msg.body,
       sound: true,
       color: "#E91E8C",
+    },
+    trigger: null,
+  });
+}
+
+export async function sendNewOrderNotification(order: Order): Promise<void> {
+  if (Platform.OS === "web") return;
+  const total = order.driverEarningsMad + order.tipMad;
+  const tipNote = order.tipMad > 0 ? ` (incl. ${order.tipMad} DH pourboire)` : "";
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `🛵 Nouvelle course — ${total} DH${tipNote}`,
+      body: `${order.restaurantName} → ${order.dropoffAddress} · ${order.distanceKm.toFixed(1)} km · ~${order.etaMinutes} min`,
+      sound: true,
+      color: "#E91E8C",
+      data: { orderId: order.id },
     },
     trigger: null,
   });
