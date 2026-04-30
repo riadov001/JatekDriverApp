@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,28 +11,79 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useActiveOrder } from "@/context/ActiveOrderContext";
 import { useAuth } from "@/context/AuthContext";
-import { useOnline } from "@/context/OnlineContext";
 import { useColors } from "@/hooks/useColors";
+import {
+  setActiveOrderForTracking,
+  stopLocationTracking,
+} from "@/services/locationService";
+import {
+  getDriverLocationClient,
+  getOrderTrackingClient,
+} from "@/services/wsClient";
+
+function confirmCrossPlatform(
+  title: string,
+  message: string,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (Platform.OS === "web") {
+      const ok =
+        typeof window !== "undefined" && window.confirm(`${title}\n\n${message}`);
+      resolve(!!ok);
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "Annuler", style: "cancel", onPress: () => resolve(false) },
+      {
+        text: "Déconnexion",
+        style: "destructive",
+        onPress: () => resolve(true),
+      },
+    ]);
+  });
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
-  const { isOnline, toggleOnline } = useOnline();
+  const { activeOrderId, endTracking } = useActiveOrder();
 
-  const onSignOut = () => {
-    Alert.alert("Déconnexion", "Voulez-vous vraiment vous déconnecter ?", [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Déconnexion",
-        style: "destructive",
-        onPress: async () => {
-          if (isOnline) await toggleOnline();
-          await signOut();
-        },
-      },
-    ]);
+  const onSignOut = async () => {
+    const confirmed = await confirmCrossPlatform(
+      "Déconnexion",
+      activeOrderId
+        ? "Une course est encore active. La déconnexion l'annulera côté tracking."
+        : "Voulez-vous vraiment vous déconnecter ?",
+    );
+    if (!confirmed) return;
+
+    // Defensive teardown — never let any of these block sign-out.
+    try {
+      if (activeOrderId) await endTracking();
+    } catch (e) {
+      console.warn("[signout] endTracking failed", e);
+    }
+    try {
+      setActiveOrderForTracking(null);
+      await stopLocationTracking(true);
+    } catch (e) {
+      console.warn("[signout] stopLocationTracking failed", e);
+    }
+    try {
+      getDriverLocationClient().close();
+      getOrderTrackingClient().close();
+    } catch (e) {
+      console.warn("[signout] ws close failed", e);
+    }
+
+    try {
+      await signOut();
+    } catch (e) {
+      console.warn("[signout] signOut failed", e);
+    }
   };
 
   const fullName = user?.fullName ?? user?.driver?.fullName ?? "Chauffeur";
